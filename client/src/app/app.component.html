@@ -1,0 +1,16 @@
+<header>
+  <h1>Chat System</h1>
+  <nav>
+    <a routerLink="/dashboard">Dashboard</a>
+    <a routerLink="/admin" *ngIf="isAdmin()">Admin</a>
+    <button *ngIf="isLoggedIn()" (click)="logout()">Logout</button>
+  </nav>
+</header>
+
+<main>
+  <router-outlet></router-outlet>
+</main>
+
+<footer>
+  <p>&copy; 2024 Chat System</p>
+</footer>

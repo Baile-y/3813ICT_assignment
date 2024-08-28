@@ -1,0 +1,34 @@
+header {
+    background-color: #007bff;
+    color: white;
+    padding: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  
+    nav a {
+      color: white;
+      margin-right: 1rem;
+      text-decoration: none;
+    }
+  
+    button {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+    }
+  }
+  
+  main {
+    padding: 2rem;
+    min-height: calc(100vh - 160px);
+  }
+  
+  footer {
+    background-color: #f8f9fa;
+    text-align: center;
+    padding: 1rem;
+  }
+  
