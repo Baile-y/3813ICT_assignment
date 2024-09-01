@@ -1,38 +1,64 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { tap, catchError } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  private baseUrl = 'http://localhost:3000/api/auth'; // Replace with your API URL
-  private tokenKey = 'authToken'; // Key to store token in localStorage
+  private baseUrl = 'http://localhost:3000/api/users';
 
   constructor(private http: HttpClient) {}
 
   login(username: string, password: string): Observable<any> {
-    return this.http.post(`${this.baseUrl}/login`, { username, password }).pipe(
-      tap((response: any) => {
-        localStorage.setItem(this.tokenKey, response.token); // Save token
-      }),
-      catchError((error) => {
-        console.error('Login failed', error);
-        throw error;
-      })
-    );
+    return new Observable(observer => {
+      this.http.post(`${this.baseUrl}/login`, { username, password }).subscribe({
+        next: (response: any) => {
+          console.log('Login successful, response:', response);
+          this.setUserData(response);
+          observer.next(response);
+          observer.complete();
+        },
+        error: (err) => {
+          console.error('Login failed:', err);
+          observer.error(err);
+        }
+      });
+    });
   }
 
-  logout(): void {
-    localStorage.removeItem(this.tokenKey); // Remove token
+  private setUserData(user: any): void {
+    console.log('Setting user data:', user);
+    localStorage.setItem('user', JSON.stringify(user));
   }
 
-  isAuthenticated(): boolean {
-    return !!localStorage.getItem(this.tokenKey); // Check if token exists
+  getCurrentUser() {
+    const user = JSON.parse(localStorage.getItem('user')!);
+    console.log('Current user:', user);
+    return user;
+  }  
+
+  clearUserData(): void {
+    console.log('Clearing user data from localStorage');
+    localStorage.removeItem('user');
   }
 
-  getToken(): string | null {
-    return localStorage.getItem(this.tokenKey);
+  isSuperAdmin(): boolean {
+    const user = this.getCurrentUser();
+    return user && user.roles.includes('super-admin');
+  }
+
+  isGroupAdmin(): boolean {
+    const user = this.getCurrentUser();
+    return user && user.roles.includes('group-admin');
+  }
+
+  isUser(): boolean {
+    const user = this.getCurrentUser();
+    return user && user.roles.includes('user');
+  }
+
+  isLoggedIn(): boolean {
+    return !!this.getCurrentUser();
   }
 }

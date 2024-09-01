@@ -1,0 +1,15 @@
+<div class="group-list">
+  <h2>Your Groups</h2>
+  <ul>
+    <li *ngFor="let group of groups">
+      <a (click)="selectGroup(group)" class="group-name">{{ group.name }}</a>
+    </li>
+  </ul>
+
+  <div *ngIf="selectedGroupId !== null" class="group-details">
+    <app-channel [groupId]="selectedGroupId"></app-channel>
+  </div>
+
+  <input #newGroupNameInput type="text" placeholder="Enter group name" />
+  <button (click)="createGroup(newGroupNameInput.value)">Create Group</button>
+</div>

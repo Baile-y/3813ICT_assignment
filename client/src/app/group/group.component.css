@@ -1,0 +1,33 @@
+.group-list {
+    margin: 20px 0;
+  }
+  
+  .group-name {
+    color: #007bff;
+    cursor: pointer;
+    text-decoration: underline;
+    font-weight: bold;
+  }
+  
+  .group-name:hover {
+    color: #0056b3;
+    text-decoration: none;
+  }
+  
+  .group-details {
+    margin-top: 20px;
+  }
+  
+  .group-details h4 {
+    margin-bottom: 10px;
+  }
+  
+  .group-details ul {
+    list-style-type: none;
+    padding: 0;
+  }
+  
+  .group-details li {
+    margin-bottom: 10px;
+  }
+  

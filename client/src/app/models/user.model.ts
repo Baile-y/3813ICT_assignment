@@ -1,8 +1,8 @@
 export interface User {
-    id: string;
+    id: number;
     username: string;
-    email: string;
-    roles: string[]; // ['User', 'GroupAdmin', 'SuperAdmin']
-    groups: string[]; // Array of group IDs
+    password: string;
+    roles: string[];  // Array of roles such as 'user', 'group-admin', 'super-admin'
+    // groups?: Group[]; // Optional array of groups the user belongs to
   }
   

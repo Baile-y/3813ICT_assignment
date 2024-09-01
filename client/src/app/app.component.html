@@ -1,16 +1,10 @@
-<header>
-  <h1>Chat System</h1>
-  <nav>
-    <a routerLink="/dashboard">Dashboard</a>
-    <a routerLink="/admin" *ngIf="isAdmin()">Admin</a>
-    <button *ngIf="isLoggedIn()" (click)="logout()">Logout</button>
+<div class="container">
+  <h1 class="title">{{ title }}</h1>
+  <nav class="navbar">
+    <a routerLink="/login" routerLinkActive="active">Login</a> |
+    <a routerLink="/group" routerLinkActive="active">Groups</a> |
+    <a routerLink="/chat" routerLinkActive="active">Chat</a> |
+    <a href="#" (click)="logout()" class="nav-link logout-button">Logout</a>
   </nav>
-</header>
-
-<main>
   <router-outlet></router-outlet>
-</main>
-
-<footer>
-  <p>&copy; 2024 Chat System</p>
-</footer>
+</div>
