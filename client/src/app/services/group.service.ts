@@ -1,38 +1,86 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { Group } from '../models/group.model';
 import { AuthService } from './auth.service';
+import { catchError, map } from 'rxjs/operators';
 
 @Injectable({
   providedIn: 'root'
 })
 export class GroupService {
-  private baseUrl = 'http://localhost:3000/api/groups'; // API URL matching your server.js
+  private baseUrl = 'http://localhost:3000/api/groups';
 
   constructor(private http: HttpClient, private authService: AuthService) {}
 
-  // Helper method to get headers with JWT token
-  private getHeaders(): HttpHeaders {
-    const token = this.authService.getToken(); 
-    console.log('JWT Token:', token); // Log the token
-    return new HttpHeaders({
-      'Authorization': `Bearer ${token}`
-    });
-  }
-  // Fetch all groups
-  getUserGroups(): Observable<Group[]> {
-    console.log('Requesting groups with headers:', this.getHeaders().get('Authorization')); // Log the request
-    return this.http.get<Group[]>(this.baseUrl, { headers: this.getHeaders() });
-  }
-
   // Create a new group
-  createGroup(name: string): Observable<Group> {
-    return this.http.post<Group>(this.baseUrl, { name }, { headers: this.getHeaders() });
+  createGroup(name: string): Observable<Group | null> {
+    const adminId = this.authService.getCurrentUser().id;
+    const groupData = { name, adminId };
+
+    return this.http.post<{ success: boolean, group: Group }>(`${this.baseUrl}/create`, groupData, {
+      headers: this.buildHeaders()
+    }).pipe(
+      map((response) => {
+        if (response.success && response.group) {
+          this.saveGroupToLocal(response.group);
+          return response.group;
+        } else {
+          console.error('Group creation failed or response structure is incorrect', response);
+          return null;
+        }
+      }),
+      catchError(error => {
+        console.error('Group creation failed', error);
+        return of(null); // Return null on failure
+      })
+    );
   }
 
-  // Fetch details of a specific group
-  getGroupDetails(id: string): Observable<Group> {
-    return this.http.get<Group>(`${this.baseUrl}/${id}`, { headers: this.getHeaders() });
+  // Get the list of groups
+  getGroups(): Observable<Group[]> {
+    return this.http.get<Group[]>(`${this.baseUrl}`, {
+      headers: this.buildHeaders()
+    }).pipe(
+      catchError(error => {
+        console.error('Failed to fetch groups', error);
+        return of([]); // Return an empty array on failure
+      })
+    );
+  }
+
+  // Delete a group by its ID
+  deleteGroup(groupId: number): Observable<any> {
+    return this.http.delete(`${this.baseUrl}/${groupId}`, {
+      headers: this.buildHeaders()
+    }).pipe(
+      catchError(error => {
+        console.error('Failed to delete group', error);
+        return of(null); // Handle the error appropriately
+      })
+    );
+  }
+
+  // Save a group to local storage
+  private saveGroupToLocal(group: Group): void {
+    const groups = this.loadGroupsFromLocalStorage();
+    groups.push(group);  // Push the group object directly
+    localStorage.setItem('groups', JSON.stringify(groups));
+  }
+
+  // Load groups from local storage
+  private loadGroupsFromLocalStorage(): Group[] {
+    const groupsJson = localStorage.getItem('groups');
+    return groupsJson ? JSON.parse(groupsJson) : [];
+  }
+
+  // Build HTTP headers for requests
+  private buildHeaders(): HttpHeaders {
+    const user = this.authService.getCurrentUser();
+    return new HttpHeaders({
+      'Content-Type': 'application/json',
+      'user-id': user.id.toString(),
+      'user-roles': JSON.stringify(user.roles)
+    });
   }
 }

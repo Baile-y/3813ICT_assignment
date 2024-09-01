@@ -15,25 +15,11 @@ import { Router } from '@angular/router';
 })
 
 export class AppComponent {
-  title = 'your-angular-app';
-
-  constructor(private authService: AuthService, private router: Router) {}
-
-  isAdmin(): boolean {
-    const token = this.authService.getToken();
-    if (token) {
-      const decodedToken = JSON.parse(atob(token.split('.')[1]));
-      return decodedToken.role === 'Admin';
-    }
-    return false;
-  }
-
-  isLoggedIn(): boolean {
-    return this.authService.isAuthenticated();
-  }
+  constructor(private router: Router, private authService: AuthService) {}
+  title = 'Chat System';
 
   logout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);  // Redirect to the login screen after logout
-  }
+    this.authService.clearUserData();
+    this.router.navigate(['/login']); // Redirect to the login page
+  }  
 }
