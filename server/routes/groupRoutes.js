@@ -49,7 +49,7 @@ router.get('/', authorize(['super-admin', 'group-admin', 'user']), (req, res) =>
 // Create a group (Group Admin or Super Admin only)
 router.post('/create', authorize(['group-admin', 'super-admin']), (req, res) => {
   const { name, adminId, members } = req.body;
-  
+
   const group = { id: groups.length + 1, name, adminId, channels: [], members };  // Using array index + 1 as ID
   groups.push(group);
 
@@ -68,9 +68,11 @@ router.delete('/:id', authorize(['group-admin', 'super-admin']), (req, res) => {
 
   // Check if the user is the original group admin, a promoted admin, or a super admin
   const isSuperAdmin = req.user.roles.includes('super-admin');
-  const isOriginalAdmin = group.adminId === req.user.id;
-  const isPromotedAdmin = group.members.some(member => member.userId === req.user.id && member.role === 'admin');
-  console.log(group.members, req.user.id, member => member.userId, isPromotedAdmin);
+  const isOriginalAdmin = group.adminId === parseInt(req.user.id);
+  const isPromotedAdmin = group.members.some(member => 
+    member.userId === parseInt(req.user.id) && member.role === 'group-admin'
+  );
+  
   if (isSuperAdmin || isOriginalAdmin || isPromotedAdmin) {
     const groupIndex = groups.findIndex(g => g.id === groupId);
     if (groupIndex !== -1) {
@@ -81,6 +83,8 @@ router.delete('/:id', authorize(['group-admin', 'super-admin']), (req, res) => {
     return res.status(403).send('Not authorized to delete this group');
   }
 });
+
+
 
 // Create a channel within a group (Super Admin or Group Admin only)
 router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), (req, res) => {
@@ -142,34 +146,50 @@ router.post('/:groupId/invite', authorize(['group-admin', 'super-admin']), (req,
   }
 });
 
+// Add a member to a group (when the user accepts the invite)
+router.post('/:groupId/members', authorize(['user', 'group-admin', 'super-admin']), (req, res) => {
+  const { groupId } = req.params;
+  const { userId } = req.body;
 
-// Promote a user to group admin (accessible by super-admin or current group admin)
-router.post('/:groupId/promote/:userId', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { groupId, userId } = req.params;
   const group = groups.find(g => g.id === parseInt(groupId));
 
   if (!group) {
     return res.status(404).send('Group not found');
   }
 
-  // Ensure the user performing the promotion is the current group admin or super-admin
-  if (group.adminId !== req.user.id && !req.user.roles.includes('super-admin')) {
-    return res.status(403).send('Not authorized to promote users in this group');
+  // Check if the user was invited
+  const inviteIndex = group.invitations.findIndex(invite => invite.userId === userId);
+
+  if (inviteIndex === -1) {
+    return res.status(403).send('User was not invited to this group');
   }
 
-  // Find the member to promote
-  const member = group.members.find(m => m.userId === parseInt(userId));
-
-  if (!member) {
-    return res.status(404).send('User not found in the group');
-  }
-
-  // Promote the user to group admin
-  member.role = 'group-admin';
-  group.adminId = member.userId; // Optionally set this user as the new group admin if needed
+  // Add the user as a member
+  group.members.push({ userId, role: 'user' });
+  group.invitations.splice(inviteIndex, 1); // Remove the invitation after acceptance
 
   res.json({ success: true, group });
 });
+
+// Promote a user to group admin (accessible by super-admin or current group admin)
+router.post('/:groupId/promote', authorize(['group-admin', 'super-admin']), (req, res) => {
+  const { groupId } = req.params;
+  const { userId, role } = req.body;
+
+  const group = groups.find(g => g.id === parseInt(groupId));
+  if (!group) {
+    return res.status(404).send('Group not found');
+  }
+
+  const member = group.members.find(m => m.userId === parseInt(userId));
+  if (member) {
+    member.role = role;  // Update the role
+    res.json({ success: true });
+  } else {
+    res.status(404).send('User not found in group');
+  }
+});
+
 
 
 module.exports = router;

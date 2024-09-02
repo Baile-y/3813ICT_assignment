@@ -3,17 +3,17 @@
   <ul>
     <li *ngFor="let group of groups">
       <div *ngIf="userHasAccess(group)" (click)="selectGroup(group)" class="group-item">
-        <a class="clickable">{{ group.name }}</a>
+        <a class="clickable"><h3>{{ group.name }}</h3></a>
         <button *ngIf="canDeleteGroup(group)" class="delete-group-btn" (click)="deleteGroup(group.id); $event.stopPropagation()">Delete Group</button>
       </div>
     </li>
   </ul>  
 
-  <div *ngIf="selectedGroup">
-    <h3>{{ selectedGroup.name }}</h3>
-  
+  <div *ngIf="selectedGroup"> 
+    <h4>Selected: {{ selectedGroup.name }}</h4> 
     <!-- Members List -->
     <ul>
+      <p>Users:</p>
       <li *ngFor="let member of selectedGroup.members">
         {{ member.userId }} - {{ member.role }}
         <button *ngIf="canPromoteToAdmin(member)" (click)="promoteUser(selectedGroup.id, member.userId)">Promote to Admin</button>

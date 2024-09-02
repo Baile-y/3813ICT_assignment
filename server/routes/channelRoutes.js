@@ -36,7 +36,8 @@ router.get('/:groupId', authorize(['group-admin', 'super-admin', 'user']), (req,
   const group = groups.find(g => g.id === groupId); // Find the group in the server-side groups array
 
   console.log('Request to fetch channels for group ID:', groupId);
-  console.log('Groups:', groups);
+  console.log('Groups:', JSON.stringify(groups, null, 2));
+
 
   if (group) {
     res.json({ channels: group.channels });

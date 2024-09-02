@@ -12,5 +12,5 @@ export interface Group {
 // Define the structure of the Member object
 export interface Member {
   userId: number;          // User ID of the member
-  role: 'admin' | 'user';  // Role of the member in the group
+  role: 'user' | 'admin' | 'group-admin';  // Role of the member in the group
 }

@@ -1,58 +1,45 @@
-.chat-container {
-    max-width: 600px;
-    margin: auto;
-  }
-  
-  .channel-list {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 20px 0;
-  }
-  
-  .channel-list li {
-    padding: 10px;
-    background-color: #f0f0f0;
-    margin-bottom: 5px;
-    cursor: pointer;
-  }
-  
-  .channel-list li.selected {
-    background-color: #007bff;
-    color: white;
-  }
-  
-  .chat-section {
-    border-top: 1px solid #ddd;
-    padding-top: 20px;
-  }
-  
-  .messages {
-    height: 300px;
-    overflow-y: auto;
-    margin-bottom: 10px;
-    padding: 5px;
-    border: 1px solid #ddd;
-    background-color: #f9f9f9;
-  }
-  
-  .message {
-    margin-bottom: 10px;
-  }
-  
-  .chat-input {
-    display: flex;
-  }
-  
-  .chat-input input {
-    flex: 1;
-    padding: 5px;
-  }
-  
-  .chat-input button {
-    padding: 5px 10px;
-    background-color: #007bff;
-    color: #fff;
-    border: none;
-    cursor: pointer;
-  }
-  
+.channel-section {
+  margin-top: 30px;
+}
+
+.channel-section h4 {
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+.channel-section p {
+  display: inline-block;
+  margin-right: 10px;
+  color: #333;
+}
+
+.channel-section button.create-channel {
+  background-color: #28a745;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.channel-section button.create-channel:hover {
+  background-color: #218838;
+}
+
+.channel-section ul {
+  margin-top: 10px;
+}
+
+.channel-section li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fff;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.channel-section li p {
+  margin: 0;
+}

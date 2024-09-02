@@ -27,6 +27,11 @@ export class AuthService {
     });
   }
 
+  isAuthenticated(): boolean {
+    // Check if the user is authenticated by checking local storage or other means
+    return !!localStorage.getItem('user');
+  }
+  
   private setUserData(user: any): void {
     console.log('Setting user data:', user);
     localStorage.setItem('user', JSON.stringify(user));

@@ -55,10 +55,11 @@ export class GroupComponent implements OnInit {
     const user = this.authService.getCurrentUser();
     const isSuperAdmin = user.roles.includes('super-admin');
     const isGroupAdmin = group.adminId === user.id;
-    const isPromotedAdmin = group.members.some(member => member.userId === user.id && member.role === 'admin');
-  
+    const isPromotedAdmin = group.members.some(member => member.userId === user.id && member.role === 'group-admin');
+
     return isSuperAdmin || isGroupAdmin || isPromotedAdmin;
   }
+
 
   deleteGroup(groupId: number): void {
     this.groupService.deleteGroup(groupId).subscribe({
@@ -66,7 +67,7 @@ export class GroupComponent implements OnInit {
         if (response && response.success) {
           this.groups = this.groups.filter(group => group.id !== groupId);
           console.log('Group deleted successfully.');
-  
+
           // Clear the selected group if the deleted group was the selected one
           if (this.selectedGroupId === groupId) {
             this.selectedGroup = null;
@@ -81,7 +82,7 @@ export class GroupComponent implements OnInit {
       }
     });
   }
-  
+
   userHasAccess(group: Group): boolean {
     const user = this.authService.getCurrentUser();
     return group.members.some(member => member.userId === user.id);
@@ -89,14 +90,20 @@ export class GroupComponent implements OnInit {
 
   selectGroup(group: Group): void {
     if (this.userHasAccess(group)) {
-      this.selectedGroupId = group.id;
-      this.selectedGroup = group;
+      if (this.selectedGroupId === group.id) {
+        this.selectedGroupId = null; // Unselect the group if it's already selected
+        this.selectedGroup = null; // Reset the selected group
+      }
+      else {
+        this.selectedGroupId = group.id;
+        this.selectedGroup = group;
+      }
     } else {
       console.error('User does not have access to this group');
       this.selectedGroupId = null;
       this.selectedGroup = null;
     }
-  } 
+  }
 
   promoteUser(groupId: number, userId: number): void {
     this.groupService.promoteUserToAdmin(groupId, userId).subscribe({
@@ -132,5 +139,5 @@ export class GroupComponent implements OnInit {
       return;
     }
     this.groupService.inviteUserToGroup(groupId, userId);
-  }  
+  }
 }
