@@ -2,10 +2,29 @@
   <h2>Your Groups</h2>
   <ul>
     <li *ngFor="let group of groups">
-      <a (click)="selectGroup(group)" class="group-name">{{ group.name }}</a>
+      <div *ngIf="userHasAccess(group)" (click)="selectGroup(group)" class="group-item">
+        <a class="clickable">{{ group.name }}</a>
+        <button *ngIf="canDeleteGroup(group)" class="delete-group-btn" (click)="deleteGroup(group.id); $event.stopPropagation()">Delete Group</button>
+      </div>
     </li>
-  </ul>
+  </ul>  
 
+  <div *ngIf="selectedGroup">
+    <h3>{{ selectedGroup.name }}</h3>
+  
+    <!-- Members List -->
+    <ul>
+      <li *ngFor="let member of selectedGroup.members">
+        {{ member.userId }} - {{ member.role }}
+        <button *ngIf="canPromoteToAdmin(member)" (click)="promoteUser(selectedGroup.id, member.userId)">Promote to Admin</button>
+      </li>
+    </ul>
+  
+    <!-- Invite User -->
+    <input #inviteUserIdInput type="text" placeholder="Enter User ID to invite" />
+    <button (click)="inviteUserToGroup(selectedGroup.id, inviteUserIdInput.value)">Invite User</button>
+  </div>  
+  
   <div *ngIf="selectedGroupId !== null" class="group-details">
     <app-channel [groupId]="selectedGroupId"></app-channel>
   </div>

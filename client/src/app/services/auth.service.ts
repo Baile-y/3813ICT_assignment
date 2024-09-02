@@ -34,7 +34,6 @@ export class AuthService {
 
   getCurrentUser() {
     const user = JSON.parse(localStorage.getItem('user')!);
-    console.log('Current user:', user);
     return user;
   }  
 

@@ -20,9 +20,9 @@ export class ChannelService {
       tap((response) => {
         this.updateGroupInLocalStorage(groupId, response.channel);
       }),
-      map(response => response.channel)  // Ensure only the channel object is returned
+      map(response => response.channel)
     );
-  }
+  }  
   
   getChannels(groupId: number): Observable<Channel[]> {
     const headers = this.buildHeadersForGroup(groupId);
@@ -50,8 +50,6 @@ export class ChannelService {
     }
 
     const user = this.authService.getCurrentUser();
-    console.log('Building headers with user data:', user);
-
     return new HttpHeaders({
       'Content-Type': 'application/json',
       'group-data': JSON.stringify(group),
