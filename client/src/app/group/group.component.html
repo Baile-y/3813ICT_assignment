@@ -1,34 +1,59 @@
-<div class="group-list">
+<div class="group-container">
   <h2>Your Groups</h2>
-  <ul>
+  <ul class="group-list">
     <li *ngFor="let group of groups">
       <div *ngIf="userHasAccess(group)" (click)="selectGroup(group)" class="group-item">
-        <a class="clickable"><h3>{{ group.name }}</h3></a>
-        <button *ngIf="canDeleteGroup(group)" class="delete-group-btn" (click)="deleteGroup(group.id); $event.stopPropagation()">Delete Group</button>
+        <a class="clickable">
+          <h3>{{ group.name }}</h3>
+        </a>
+        <button *ngIf="canDeleteGroup(group)" class="delete-group-btn"
+          (click)="deleteGroup(group.id); $event.stopPropagation()">Delete Group</button>
+      </div>
+      <div *ngIf="!userHasAccess(group)" class="group-item">
+        <h3>{{ group.name }}</h3>
+        <button class="request-join-btn" (click)="requestToJoin(group.id)">Request to Join</button>
       </div>
     </li>
-  </ul>  
+  </ul>
 
-  <div *ngIf="selectedGroup"> 
-    <h4>Selected: {{ selectedGroup.name }}</h4> 
-    <!-- Members List -->
-    <ul>
+  <div *ngIf="selectedGroup" class="selected-group-details">
+    <h4>Selected: {{ selectedGroup.name }}</h4>
+    <button class="leave-group-btn" (click)="leaveGroup(selectedGroup.id)">Leave Group</button>
+    
+    <div class="members-section">
       <p>Users:</p>
-      <li *ngFor="let member of selectedGroup.members">
-        {{ member.userId }} - {{ member.role }}
-        <button *ngIf="canPromoteToAdmin(member)" (click)="promoteUser(selectedGroup.id, member.userId)">Promote to Admin</button>
-      </li>
-    </ul>
-  
-    <!-- Invite User -->
-    <input #inviteUserIdInput type="text" placeholder="Enter User ID to invite" />
-    <button (click)="inviteUserToGroup(selectedGroup.id, inviteUserIdInput.value)">Invite User</button>
-  </div>  
-  
+      <ul class="members-list">
+        <li *ngFor="let member of selectedGroup.members">
+          {{ member.userId }} - {{ member.role }}
+          <button *ngIf="canPromoteToAdmin(member)" (click)="promoteUser(selectedGroup.id, member.userId)">Promote to Admin</button>
+          <button *ngIf="canDeleteUser(member)" (click)="deleteUserFromGroup(selectedGroup.id, member.userId)">Remove User</button>
+        </li>
+      </ul>
+    </div>
+
+    <div class="invite-section">
+      <input #inviteUserIdInput type="text" placeholder="Enter User ID to invite" class="invite-input"/>
+      <button class="invite-btn" (click)="inviteUserToGroup(selectedGroup.id, inviteUserIdInput.value)">Invite User</button>
+    </div>
+
+    <div class="join-requests-section">
+      <h4>Join Requests</h4>
+      <ul class="join-requests-list">
+        <li *ngFor="let request of selectedGroup.joinRequests">
+          {{ request.userId }} - {{ request.name }}
+          <button class="approve-btn" (click)="approveRequest(selectedGroup.id, request.userId)">Approve</button>
+          <button class="deny-btn" (click)="denyRequest(selectedGroup.id, request.userId)">Deny</button>
+        </li>
+      </ul>
+    </div>
+  </div>
+
   <div *ngIf="selectedGroupId !== null" class="group-details">
     <app-channel [groupId]="selectedGroupId"></app-channel>
   </div>
 
-  <input #newGroupNameInput type="text" placeholder="Enter group name" />
-  <button (click)="createGroup(newGroupNameInput.value)">Create Group</button>
+  <div *ngIf="canCreateGroup()" class="create-group-section">
+    <input #newGroupNameInput type="text" placeholder="Enter group name" class="create-group-input"/>
+    <button class="create-group-btn" (click)="createGroup(newGroupNameInput.value)">Create Group</button>
+  </div>
 </div>

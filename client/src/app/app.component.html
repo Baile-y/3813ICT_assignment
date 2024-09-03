@@ -1,10 +1,14 @@
 <div class="container">
   <h1 class="title">{{ title }}</h1>
   <nav class="navbar">
-    <a routerLink="/group" routerLinkActive="active">Groups</a> |
-    <a routerLink="/chat" routerLinkActive="active">Chat</a> |
-    <a routerLink="/invites" routerLinkActive="active">Invites</a>
+    <a *ngIf="isLoggedIn()" routerLink="/group" routerLinkActive="active">Groups</a> 
+    <a *ngIf="isLoggedIn()" routerLink="/chat" routerLinkActive="active">Chat</a> 
+    <a *ngIf="isLoggedIn()" routerLink="/invites" routerLinkActive="active">Invites</a>
+    <a *ngIf="isAdmin()" routerLink="/admin" routerLinkActive="active">Admin</a>
     <a *ngIf="!isLoggedIn()" routerLink="/login" routerLinkActive="active">Login</a>
+    <a *ngIf="!isLoggedIn()" routerLink="/register" routerLinkActive="active">Register</a>
+    <a *ngIf="isLoggedIn()" (click)="deleteAccount()">Delete Account</a>
+
     <a href="#" *ngIf="isLoggedIn()" (click)="logout()" routerLinkActive="active">Logout</a>
     
   </nav>

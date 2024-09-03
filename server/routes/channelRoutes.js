@@ -35,10 +35,6 @@ router.get('/:groupId', authorize(['group-admin', 'super-admin', 'user']), (req,
   const groupId = parseInt(req.params.groupId); // Get the group ID from the request params
   const group = groups.find(g => g.id === groupId); // Find the group in the server-side groups array
 
-  console.log('Request to fetch channels for group ID:', groupId);
-  console.log('Groups:', JSON.stringify(groups, null, 2));
-
-
   if (group) {
     res.json({ channels: group.channels });
   } else {
@@ -55,9 +51,6 @@ router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), (re
   // Use the server-side groups array to find the group by ID
   const group = groups.find(g => g.id === groupId);
 
-  console.log('Creating channel in group ID:', groupId);
-  console.log('Groups:', groups);
-
   if (!group) {
     return res.status(404).send('Group not found');
   }
@@ -66,7 +59,6 @@ router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), (re
   if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
     const channel = { id: group.channels.length + 1, name };
     group.channels.push(channel);
-    console.log('Channel created:', channel); // Log channel creation
     res.json({ success: true, channel });
   } else {
     res.status(403).send('Not authorized to create channels in this group');

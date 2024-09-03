@@ -1,13 +1,15 @@
 import { Channel } from './channel.model';
 
 export interface Group {
-  id: number;              // Unique identifier for the group
-  name: string;            // Name of the group
-  adminId: number;         // User ID of the group admin
-  channels: Channel[];     // Array of channels within the group
-  members: Member[];       // Array of members with their roles
-  invitations?: { userId: number }[]; // Group invitations
-} 
+  id: number;
+  name: string;
+  adminId: number;
+  channels: Channel[];
+  members: { userId: number; role: string }[];
+  invitations?: { userId: number }[];
+  joinRequests?: { userId: number, name: string}[];
+}
+
 
 // Define the structure of the Member object
 export interface Member {

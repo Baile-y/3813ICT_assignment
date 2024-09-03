@@ -1,128 +1,90 @@
-/* Container for the group list */
-.group-list {
+.group-container {
   max-width: 800px;
-  margin: 20px auto;
+  margin: 0 auto;
   padding: 20px;
   background-color: #f9f9f9;
   border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
-.group-list h2 {
-  font-size: 24px;
-  margin-bottom: 20px;
-  color: #333;
-}
-
-/* List of groups */
-.group-list ul {
-  list-style: none;
+.group-list {
+  list-style-type: none;
   padding: 0;
-}
-
-.group-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 15px;
-  margin-bottom: 15px;  /* Added margin for better spacing */
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.group-list li a {
-  text-decoration: none;
-  color: #333;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.group-list li a:hover {
-  color: #007bff;
+  margin-bottom: 20px;
 }
 
 .group-item {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  width: 100%;  /* Ensure the item takes up full width */
-}
-
-.delete-group-btn {
-  background-color: #ff4d4d;
-  color: white;
-  border: none;
-  padding: 5px 10px;
+  background-color: #fff;
+  padding: 10px;
+  margin-bottom: 10px;
   border-radius: 4px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
   cursor: pointer;
-  margin-left: auto;  /* Align delete button to the right */
 }
 
-.delete-group-btn:hover {
-  background-color: #ff1a1a;
+.group-item:hover {
+  background-color: #f1f1f1;
 }
 
-.group-details {
+.selected-group-details {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.leave-group-btn, 
+.delete-group-btn, 
+.invite-btn, 
+.approve-btn, 
+.deny-btn, 
+.request-join-btn {
+  background-color: #007bff;
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 14px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.leave-group-btn, .deny-btn {
+  background-color: #dc3545;
+}
+
+.create-group-section,
+.invite-section,
+.join-requests-section,
+.members-section {
   margin-top: 20px;
 }
 
-.group-details h3 {
-  font-size: 20px;
-  margin-bottom: 10px;
-  color: #007bff;
-}
-
-.group-details ul {
-  list-style: none;
+.members-list,
+.join-requests-list {
+  list-style-type: none;
   padding: 0;
 }
 
-.group-details ul li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  margin-bottom: 10px;  /* Added margin for better spacing */
-  background-color: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.group-details ul li button {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.group-details ul li button:hover {
-  background-color: #0056b3;
-}
-
-.group-details input[type="text"] {
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+.invite-input,
+.create-group-input {
   width: calc(100% - 120px);
-  margin-top: 10px;  /* Added margin for better spacing */
+  padding: 8px;
+  margin-right: 10px;
 }
 
-button {
-  padding: 8px 15px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-top: 10px;  /* Added margin for better spacing */
+h3, h4, p {
+  margin-top: 0;
 }
 
-button:hover {
-  background-color: #0056b3;
-}
-
-input[type="text"] + button {
-  margin-left: 10px;
+h2 {
+  text-align: center;
+  margin-bottom: 20px;
 }

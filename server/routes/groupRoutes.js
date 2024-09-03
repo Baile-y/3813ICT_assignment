@@ -4,6 +4,7 @@ const router = express.Router();
 const { groups } = require('./dataStore'); // Import the shared groups array
 
 // Middleware to check roles and set user info
+// Middleware to check roles and set user info
 const authorize = (requiredRoles) => {
   return (req, res, next) => {
     let userRoles;
@@ -12,7 +13,7 @@ const authorize = (requiredRoles) => {
     try {
       if (req.headers['user-roles']) {
         userRoles = JSON.parse(req.headers['user-roles']);
-        userId = req.headers['user-id'];
+        userId = req.headers['user-id'];  // Check if this is correctly coming in as a number/string
       } else if (req.body.user && req.body.user.roles) {
         userRoles = req.body.user.roles;
         userId = req.body.user.id;
@@ -22,29 +23,35 @@ const authorize = (requiredRoles) => {
         req.user = { id: userId, roles: userRoles };
         next();
       } else {
+        console.log('Authorization failed');
         res.status(403).send('Not authorized');
       }
     } catch (error) {
+      console.log('Error in authorization middleware:', error);
       res.status(400).send('Invalid user data in headers or request body');
     }
   };
 };
 
-// Get all groups (with role-based access)
-router.get('/', authorize(['super-admin', 'group-admin', 'user']), (req, res) => {
-  const user = req.user;
 
-  if (user.roles.includes('super-admin')) {
-    // Super Admin can access all groups
-    res.json({ groups });
-  } else {
-    // Group Admins and Users see only the groups they belong to
-    const userGroups = groups.filter(group =>
-      group.members.some(member => member.userId === user.id)
-    );
-    res.json({ groups: userGroups });
-  }
+// Get all groups (with role-based access)
+router.get('/', authorize(['group-admin', 'super-admin', 'user']), (req, res) => {
+  const user = req.user;
+  // let visibleGroups;
+  // if (user.roles.includes('super-admin')) {
+    // Super Admin can see all groups
+    // visibleGroups = groups;
+  // } else {
+  //   // Group Admin and Users see only the groups they belong to
+  //   visibleGroups = groups.filter(group => {
+  //     const isMember = group.members.some(member => String(member.userId) === String(user.id));
+  //     return isMember;
+  //   });
+  // }
+  // res.json({ groups: visibleGroups });
+  res.json({ groups });
 });
+
 
 // Create a group (Group Admin or Super Admin only)
 router.post('/create', authorize(['group-admin', 'super-admin']), (req, res) => {
@@ -53,12 +60,11 @@ router.post('/create', authorize(['group-admin', 'super-admin']), (req, res) => 
   const group = { id: groups.length + 1, name, adminId, channels: [], members };  // Using array index + 1 as ID
   groups.push(group);
 
-  console.log('Group created:', group);
   res.json({ success: true, group });
 });
 
 // Delete a group (Group Admin can delete their own groups)
-router.delete('/:id', authorize(['group-admin', 'super-admin']), (req, res) => {
+router.delete('/:id', authorize(['group-admin', 'super-admin', 'user']), (req, res) => {
   const groupId = parseInt(req.params.id);
   const group = groups.find(g => g.id === groupId);
 
@@ -150,7 +156,6 @@ router.post('/:groupId/invite', authorize(['group-admin', 'super-admin']), (req,
 router.post('/:groupId/members', authorize(['user', 'group-admin', 'super-admin']), (req, res) => {
   const { groupId } = req.params;
   const { userId } = req.body;
-
   const group = groups.find(g => g.id === parseInt(groupId));
 
   if (!group) {
@@ -190,6 +195,104 @@ router.post('/:groupId/promote', authorize(['group-admin', 'super-admin']), (req
   }
 });
 
+// Remove a user from a group (Group Admin or Super Admin only)
+router.delete('/:groupId/users/:userId', authorize(['group-admin', 'super-admin']), (req, res) => {
+  const { groupId, userId } = req.params;
+  const group = groups.find(g => g.id === parseInt(groupId));
 
+  if (!group) {
+    return res.status(404).send('Group not found');
+  }
+
+  const userIndex = group.members.findIndex(member => member.userId === parseInt(userId));
+  if (userIndex !== -1) {
+    group.members.splice(userIndex, 1);  // Remove the user from the group members
+    return res.json({ success: true, message: `User ${userId} removed from group ${groupId}` });
+  } else {
+    return res.status(404).json({ success: false, message: 'User not found in group' });
+  }
+});
+
+// Add join request route
+router.post('/:groupId/join-request', authorize(['user', 'group-admin', 'super-admin']), (req, res) => {
+  const { groupId } = req.params;
+  const { userId, name } = req.body;
+
+  const group = groups.find(g => g.id === parseInt(groupId));
+  
+  if (group) {
+    if (!group.joinRequests) {
+      group.joinRequests = [];
+    }
+
+    // Check if user already requested
+    const alreadyRequested = group.joinRequests.some(req => req.userId === userId);
+    if (!alreadyRequested) {
+      console.log({ userId, name });
+      group.joinRequests.push({ userId, name });
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, message: 'User has already requested to join' });
+    }
+  } else {
+    res.status(404).send('Group not found');
+  }
+});
+
+
+// Approve join request
+router.post('/:groupId/approve-request', authorize(['group-admin', 'super-admin']), (req, res) => {
+  const { groupId } = req.params;
+  const { userId } = req.body;
+  const group = groups.find(g => g.id === parseInt(groupId));
+
+  if (group) {
+    const requestIndex = group.joinRequests?.findIndex(req => req.userId === userId);
+    if (requestIndex !== undefined && requestIndex !== -1) {
+      group.joinRequests.splice(requestIndex, 1);
+      group.members.push({ userId, role: 'user' });
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, message: 'Join request not found' });
+    }
+  } else {
+    res.status(404).send('Group not found');
+  }
+});
+
+// Deny join request
+router.post('/:groupId/deny-request', authorize(['group-admin', 'super-admin']), (req, res) => {
+  const { groupId } = req.params;
+  const { userId } = req.body;
+  const group = groups.find(g => g.id === parseInt(groupId));
+
+  if (group) {
+    group.joinRequests = group.joinRequests?.filter(req => req.userId !== userId);
+    res.json({ success: true });
+  } else {
+    res.status(404).send('Group not found');
+  }
+});
+
+// Route for a user to leave a group
+router.post('/:groupId/leave', authorize(['user', 'group-admin', 'super-admin']), (req, res) => {
+  const { groupId } = req.params;
+  const { userId } = req.body;
+  const group = groups.find(g => g.id === parseInt(groupId));
+
+  if (group) {
+    group.members = group.members.filter(member => member.userId !== userId);
+
+    // Check if the user was the group admin and reassign if necessary
+    if (group.adminId === userId && group.members.length > 0) {
+      group.adminId = group.members[0].userId;
+      group.members[0].role = 'admin';
+    }
+
+    res.json({ success: true });
+  } else {
+    res.status(404).send('Group not found');
+  }
+});
 
 module.exports = router;
