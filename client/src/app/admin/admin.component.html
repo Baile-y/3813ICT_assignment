@@ -1,0 +1,7 @@
+<div *ngFor="let user of users">
+    <p>{{ user.username }} - {{ user.roles.join(', ') }}</p>
+    <button *ngIf="isSuperAdmin() && !user.roles.includes('super-admin')" (click)="promoteToSuperAdmin(user.id)">
+        Promote to Super Admin
+    </button>
+    <button (click)="deleteUser(user.id)">Delete User</button>
+</div>

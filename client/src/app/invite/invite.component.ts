@@ -26,21 +26,22 @@ export class InvitesComponent implements OnInit {
       this.invitations = groups;
     });
   }
-
+  
   acceptInvite(groupId: number): void {
     this.groupService.acceptInvite(groupId).subscribe(success => {
       if (success) {
-        this.loadInvitations(); // Reload invitations to update UI
+        this.loadInvitations(); // Reload groups to update UI
       } else {
         console.error('Failed to accept invite');
       }
     });
   }
 
+
   declineInvite(groupId: number): void {
     this.groupService.declineInvite(groupId).subscribe(success => {
       if (success) {
-        this.loadInvitations(); // Reload invitations to update UI
+        this.loadInvitations(); // Reload groups to update UI
       } else {
         console.error('Failed to decline invite');
       }
