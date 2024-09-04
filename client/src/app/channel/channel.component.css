@@ -1,0 +1,45 @@
+.channel-section {
+  margin-top: 30px;
+}
+
+.channel-section h4 {
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: bold;
+  color: #333;
+}
+
+.channel-section p {
+  display: inline-block;
+  margin-right: 10px;
+  color: #333;
+}
+
+.channel-section button.create-channel {
+  background-color: #28a745;
+  margin-top: 10px;
+  margin-bottom: 20px;
+}
+
+.channel-section button.create-channel:hover {
+  background-color: #218838;
+}
+
+.channel-section ul {
+  margin-top: 10px;
+}
+
+.channel-section li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fff;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.channel-section li p {
+  margin: 0;
+}

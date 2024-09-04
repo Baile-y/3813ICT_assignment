@@ -1,0 +1,11 @@
+<div class="channel-section">
+  <h4>Channels in Group</h4>
+  <ul>
+    <li *ngFor="let channel of channels">
+      <p>{{ channel.name }}</p>
+      <button (click)="deleteChannel(channel.id)">Delete Channel</button>
+    </li>
+  </ul>
+  <input #channelNameInput type="text" placeholder="Channel Name" />
+  <button class="create-channel" (click)="createChannel(channelNameInput.value)">Create Channel</button>
+</div>

@@ -1,7 +1,18 @@
+import { Channel } from './channel.model';
+
 export interface Group {
-    id: string;
-    name: string;
-    channels: string[]; // Array of channel IDs
-    admins: string[]; // Array of user IDs who are admins
-  }
-  
+  id: number;
+  name: string;
+  adminId: number;
+  channels: Channel[];
+  members: { userId: number; role: string }[];
+  invitations?: { userId: number }[];
+  joinRequests?: { userId: number, name: string}[];
+}
+
+
+// Define the structure of the Member object
+export interface Member {
+  userId: number;          // User ID of the member
+  role: 'user' | 'admin' | 'group-admin';  // Role of the member in the group
+}

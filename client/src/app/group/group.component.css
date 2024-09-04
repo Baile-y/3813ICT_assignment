@@ -1,0 +1,90 @@
+.group-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.group-list {
+  list-style-type: none;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.group-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #fff;
+  padding: 10px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+}
+
+.group-item:hover {
+  background-color: #f1f1f1;
+}
+
+.selected-group-details {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #fff;
+  border-radius: 4px;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.leave-group-btn, 
+.delete-group-btn, 
+.invite-btn, 
+.approve-btn, 
+.deny-btn, 
+.request-join-btn {
+  background-color: #007bff;
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 14px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.leave-group-btn, .deny-btn {
+  background-color: #dc3545;
+}
+
+.create-group-section,
+.invite-section,
+.join-requests-section,
+.members-section {
+  margin-top: 20px;
+}
+
+.members-list,
+.join-requests-list {
+  list-style-type: none;
+  padding: 0;
+}
+
+.invite-input,
+.create-group-input {
+  width: calc(100% - 120px);
+  padding: 8px;
+  margin-right: 10px;
+}
+
+h3, h4, p {
+  margin-top: 0;
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}

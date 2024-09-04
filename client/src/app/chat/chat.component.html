@@ -1,12 +1,21 @@
 <div class="chat-container">
-    <div class="chat-window">
-      <div *ngFor="let message of messages">
-        <strong>{{ message.senderId }}:</strong> {{ message.content }}
+  <h3>Select a Channel</h3>
+  <ul class="channel-list">
+    <li *ngFor="let channel of channels" (click)="selectChannel(channel)" [class.selected]="channel.id === selectedChannel?.id">
+      {{ channel.name }}
+    </li>
+  </ul>
+
+  <div *ngIf="selectedChannel" class="chat-section">
+    <h3>Chat in {{ selectedChannel.name }}</h3>
+    <div class="messages">
+      <div *ngFor="let message of selectedChannel.messages" class="message">
+        <strong>{{ message.sender }}:</strong> {{ message.content }}
       </div>
     </div>
     <div class="chat-input">
-      <input type="text" [(ngModel)]="newMessage" placeholder="Type a message..." />
+      <input [(ngModel)]="newMessageContent" placeholder="Type your message..." />
       <button (click)="sendMessage()">Send</button>
     </div>
   </div>
-  
+</div>

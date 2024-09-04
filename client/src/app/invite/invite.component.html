@@ -1,0 +1,11 @@
+<div class="invites-list">
+    <h2>Your Group Invitations</h2>
+    <ul>
+      <li *ngFor="let invite of invitations">
+        <span>{{ invite.name }}</span>
+        <button (click)="acceptInvite(invite.id)">Accept</button>
+        <button (click)="declineInvite(invite.id)">Decline</button>
+      </li>
+    </ul>
+  </div>
+  
