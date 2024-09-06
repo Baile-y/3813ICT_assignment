@@ -1,9 +1,36 @@
 const express = require('express');
+const fs = require('fs');
 const router = express.Router();
 
-const { groups } = require('./dataStore'); // Import the shared groups array
+const groupsPath = './data/groups.json'; // Path to the JSON file
 
-// Middleware to check roles and set user info
+// Helper function to load groups from JSON file
+const loadGroups = () => {
+  try {
+    const dataBuffer = fs.readFileSync(groupsPath);
+    const dataJSON = dataBuffer.toString();
+    return JSON.parse(dataJSON);
+  } catch (error) {
+    console.error("File not found or invalid JSON, initializing with empty groups array.");
+    return [];
+  }
+};
+
+// Helper function to save groups to JSON file
+const saveGroups = (groups) => {
+  const dataJSON = JSON.stringify(groups, null, 2);
+  fs.writeFileSync(groupsPath, dataJSON, (err) => {
+    if (err) {
+      console.error('Error saving groups:', err);
+    } else {
+      console.log('Groups saved successfully.');
+    }
+  });
+};
+
+// Load groups from JSON file at the start
+let groups = loadGroups();
+
 // Middleware to check roles and set user info
 const authorize = (requiredRoles) => {
   return (req, res, next) => {
@@ -33,25 +60,10 @@ const authorize = (requiredRoles) => {
   };
 };
 
-
 // Get all groups (with role-based access)
 router.get('/', authorize(['group-admin', 'super-admin', 'user']), (req, res) => {
-  const user = req.user;
-  // let visibleGroups;
-  // if (user.roles.includes('super-admin')) {
-    // Super Admin can see all groups
-    // visibleGroups = groups;
-  // } else {
-  //   // Group Admin and Users see only the groups they belong to
-  //   visibleGroups = groups.filter(group => {
-  //     const isMember = group.members.some(member => String(member.userId) === String(user.id));
-  //     return isMember;
-  //   });
-  // }
-  // res.json({ groups: visibleGroups });
   res.json({ groups });
 });
-
 
 // Create a group (Group Admin or Super Admin only)
 router.post('/create', authorize(['group-admin', 'super-admin']), (req, res) => {
@@ -60,6 +72,7 @@ router.post('/create', authorize(['group-admin', 'super-admin']), (req, res) => 
   const group = { id: groups.length + 1, name, adminId, channels: [], members };  // Using array index + 1 as ID
   groups.push(group);
 
+  saveGroups(groups);  // Save updated groups to JSON file
   res.json({ success: true, group });
 });
 
@@ -83,14 +96,13 @@ router.delete('/:id', authorize(['group-admin', 'super-admin', 'user']), (req, r
     const groupIndex = groups.findIndex(g => g.id === groupId);
     if (groupIndex !== -1) {
       groups.splice(groupIndex, 1);
+      saveGroups(groups);  // Save updated groups to JSON file
       return res.json({ success: true });
     }
   } else {
     return res.status(403).send('Not authorized to delete this group');
   }
 });
-
-
 
 // Create a channel within a group (Super Admin or Group Admin only)
 router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), (req, res) => {
@@ -101,6 +113,7 @@ router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), (re
   if (group && (group.adminId === req.user.id || req.user.roles.includes('super-admin'))) {
     const channel = { id: group.channels.length + 1, name };
     group.channels.push(channel);
+    saveGroups(groups);  // Save updated groups to JSON file
     res.json({ success: true, channel });
   } else {
     console.log(`Group not found or user not authorized for ID: ${groupId}`);
@@ -115,6 +128,7 @@ router.delete('/:groupId/channels/:channelId', authorize(['group-admin', 'super-
 
   if (group && (group.adminId === req.user.id || req.user.roles.includes('super-admin'))) {
     group.channels = group.channels.filter(c => c.id !== parseInt(channelId));
+    saveGroups(groups);  // Save updated groups to JSON file
     res.json({ success: true });
   } else {
     console.error(`Group not found or user not authorized for ID: ${groupId}`);
@@ -133,19 +147,18 @@ router.post('/:groupId/invite', authorize(['group-admin', 'super-admin']), (req,
     return res.status(404).send('Group not found');
   }
 
-  // Check if the user sending the invite is the admin of the group or a super admin
   if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
     if (!group.invitations) {
       group.invitations = [];
     }
 
-    // Check if the user is already invited
     const alreadyInvited = group.invitations.some(invite => invite.userId === userId);
     if (alreadyInvited) {
       return res.status(400).send('User is already invited');
     }
 
     group.invitations.push({ userId });
+    saveGroups(groups);  // Save updated groups to JSON file
     res.json({ success: true, message: 'User invited successfully' });
   } else {
     res.status(403).send('Not authorized to invite users to this group');
@@ -162,16 +175,15 @@ router.post('/:groupId/members', authorize(['user', 'group-admin', 'super-admin'
     return res.status(404).send('Group not found');
   }
 
-  // Check if the user was invited
   const inviteIndex = group.invitations.findIndex(invite => invite.userId === userId);
 
   if (inviteIndex === -1) {
     return res.status(403).send('User was not invited to this group');
   }
 
-  // Add the user as a member
   group.members.push({ userId, role: 'user' });
   group.invitations.splice(inviteIndex, 1); // Remove the invitation after acceptance
+  saveGroups(groups);  // Save updated groups to JSON file
 
   res.json({ success: true, group });
 });
@@ -189,6 +201,7 @@ router.post('/:groupId/promote', authorize(['group-admin', 'super-admin']), (req
   const member = group.members.find(m => m.userId === parseInt(userId));
   if (member) {
     member.role = role;  // Update the role
+    saveGroups(groups);  // Save updated groups to JSON file
     res.json({ success: true });
   } else {
     res.status(404).send('User not found in group');
@@ -207,6 +220,7 @@ router.delete('/:groupId/users/:userId', authorize(['group-admin', 'super-admin'
   const userIndex = group.members.findIndex(member => member.userId === parseInt(userId));
   if (userIndex !== -1) {
     group.members.splice(userIndex, 1);  // Remove the user from the group members
+    saveGroups(groups);  // Save updated groups to JSON file
     return res.json({ success: true, message: `User ${userId} removed from group ${groupId}` });
   } else {
     return res.status(404).json({ success: false, message: 'User not found in group' });
@@ -225,11 +239,10 @@ router.post('/:groupId/join-request', authorize(['user', 'group-admin', 'super-a
       group.joinRequests = [];
     }
 
-    // Check if user already requested
     const alreadyRequested = group.joinRequests.some(req => req.userId === userId);
     if (!alreadyRequested) {
-      console.log({ userId, name });
       group.joinRequests.push({ userId, name });
+      saveGroups(groups);  // Save updated groups to JSON file
       res.json({ success: true });
     } else {
       res.status(400).json({ success: false, message: 'User has already requested to join' });
@@ -238,7 +251,6 @@ router.post('/:groupId/join-request', authorize(['user', 'group-admin', 'super-a
     res.status(404).send('Group not found');
   }
 });
-
 
 // Approve join request
 router.post('/:groupId/approve-request', authorize(['group-admin', 'super-admin']), (req, res) => {
@@ -251,6 +263,7 @@ router.post('/:groupId/approve-request', authorize(['group-admin', 'super-admin'
     if (requestIndex !== undefined && requestIndex !== -1) {
       group.joinRequests.splice(requestIndex, 1);
       group.members.push({ userId, role: 'user' });
+      saveGroups(groups);  // Save updated groups to JSON file
       res.json({ success: true });
     } else {
       res.status(400).json({ success: false, message: 'Join request not found' });
@@ -268,6 +281,7 @@ router.post('/:groupId/deny-request', authorize(['group-admin', 'super-admin']),
 
   if (group) {
     group.joinRequests = group.joinRequests?.filter(req => req.userId !== userId);
+    saveGroups(groups);  // Save updated groups to JSON file
     res.json({ success: true });
   } else {
     res.status(404).send('Group not found');
@@ -289,6 +303,7 @@ router.post('/:groupId/leave', authorize(['user', 'group-admin', 'super-admin'])
       group.members[0].role = 'admin';
     }
 
+    saveGroups(groups);  // Save updated groups to JSON file
     res.json({ success: true });
   } else {
     res.status(404).send('Group not found');

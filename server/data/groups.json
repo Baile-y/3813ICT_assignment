@@ -1,0 +1,14 @@
+[
+  {
+    "id": 1,
+    "name": "group_1",
+    "adminId": 1,
+    "channels": [],
+    "members": [
+      {
+        "userId": 1,
+        "role": "admin"
+      }
+    ]
+  }
+]
