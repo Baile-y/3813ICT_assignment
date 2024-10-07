@@ -1,18 +1,17 @@
 import { Channel } from './channel.model';
 
 export interface Group {
-  id: number;
+  _id: string;  // MongoDB ObjectId as string
   name: string;
-  adminId: number;
+  adminId: string;  // MongoDB ObjectId as string
   channels: Channel[];
-  members: { userId: number; role: string }[];
-  invitations?: { userId: number }[];
-  joinRequests?: { userId: number, name: string}[];
+  members: { userId: string; role: string }[];  // MongoDB ObjectId as string
+  invitations?: { userId: string }[];  // MongoDB ObjectId as string
+  joinRequests?: { userId: string, name: string }[];  // MongoDB ObjectId as string
 }
-
 
 // Define the structure of the Member object
 export interface Member {
-  userId: number;          // User ID of the member
-  role: 'user' | 'admin' | 'group-admin';  // Role of the member in the group
+  userId: string; // MongoDB ObjectId as string
+  role: 'user' | 'admin' | 'group-admin'; // Role of the member in the group
 }

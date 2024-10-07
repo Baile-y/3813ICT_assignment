@@ -1,7 +1,23 @@
 const express = require('express');
+const { ObjectId } = require('mongodb');
+const multer = require('multer');
+const path = require('path');
 const router = express.Router();
 
-const { groups } = require('./dataStore'); // Import the shared groups array
+// Configure multer for storing images
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/message-images'); // Store in 'uploads/message-images' directory
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + path.extname(file.originalname)); // Use timestamp as filename to avoid conflicts
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB size limit
+});
 
 // Middleware to check roles and set user info
 const authorize = (requiredRoles) => {
@@ -30,59 +46,184 @@ const authorize = (requiredRoles) => {
   };
 };
 
-// Get all channels within a group
-router.get('/:groupId', authorize(['group-admin', 'super-admin', 'user']), (req, res) => {
-  const groupId = parseInt(req.params.groupId); // Get the group ID from the request params
-  const group = groups.find(g => g.id === groupId); // Find the group in the server-side groups array
+// Passing `db` as a parameter to the module
+module.exports = (db) => {
 
-  if (group) {
-    res.json({ channels: group.channels });
-  } else {
-    console.error(`Group not found for ID: ${groupId}`);
-    res.status(404).send('Group not found');
-  }
-});
+  // Get all channels within a group
+  router.get('/:groupId', authorize(['group-admin', 'super-admin', 'user']), async (req, res) => {
+    const groupId = req.params.groupId;
 
-// Create a channel within a group (Group Admin or Super Admin only)
-router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const groupId = parseInt(req.params.groupId); // Get the group ID from the request params
-  const { name } = req.body;
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId.createFromHexString(groupId) });
 
-  // Use the server-side groups array to find the group by ID
-  const group = groups.find(g => g.id === groupId);
+      if (group) {
+        res.json({ channels: group.channels });
+      } else {
+        res.status(404).send('Group not found');
+      }
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+      res.status(500).json({ error: 'Error fetching channels' });
+    }
+  });
 
-  if (!group) {
-    return res.status(404).send('Group not found');
-  }
+  // Create a channel within a group (Group Admin or Super Admin only)
+  router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const groupId = req.params.groupId;
+    const { name } = req.body;
 
-  // Ensure the user is the admin of the group or a super-admin
-  if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
-    const channel = { id: group.channels.length + 1, name };
-    group.channels.push(channel);
-    res.json({ success: true, channel });
-  } else {
-    res.status(403).send('Not authorized to create channels in this group');
-  }
-});
+    try {
+      const group = await db.collection('groups').findOne({ _id: new ObjectId(groupId) });
 
-// Delete a channel within a group (Group Admin or Super Admin only)
-router.delete('/:groupId/channels/:channelId', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const groupId = parseInt(req.params.groupId); // Get the group ID from the request params
-  const channelId = parseInt(req.params.channelId); // Get the channel ID from the request params
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
 
-  // Find the group in the server-side groups array
-  const group = groups.find(g => g.id === groupId);
+      if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
+        const channel = { _id: new ObjectId(), name }; // Use _id for the channel
+        await db.collection('groups').updateOne(
+          { _id: new ObjectId(groupId) },
+          { $push: { channels: channel } }
+        );
+        res.json({ success: true, channel });
+      } else {
+        res.status(403).send('Not authorized to create channels in this group');
+      }
+    } catch (error) {
+      console.error('Error creating channel:', error); // Log the error for debugging
+      res.status(500).json({ error: 'Error creating channel' });
+    }
+  });
 
-  console.log(`Request to delete channel ID ${channelId} from group ID ${groupId}`);
-  console.log('Groups:', groups);
+  // Delete a channel within a group (Group Admin or Super Admin only)
+  router.delete('/:groupId/channels/:channelId', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const groupId = req.params.groupId; // Get the group ID from the request params
+    const channelId = req.params.channelId; // Get the channel ID from the request params
 
-  if (group) {
-    group.channels = group.channels.filter(c => c.id !== channelId);
-    res.json({ success: true });
-  } else {
-    console.error(`Group not found for ID: ${groupId}`);
-    res.status(404).send('Group not found');
-  }
-});
+    try {
+      const group = await db.collection('groups').findOne({ _id: new ObjectId(groupId) });
 
-module.exports = router;
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      // Ensure the user is the admin of the group or a super-admin
+      if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
+        await db.collection('groups').updateOne(
+          { _id: new ObjectId(groupId) },
+          { $pull: { channels: { _id: new ObjectId(channelId) } } }
+        );
+
+        res.json({ success: true });
+      } else {
+        res.status(403).send('Not authorized to delete channels in this group');
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error deleting channel' });
+    }
+  });
+
+  // router.post('/message', upload.single('image'), async (req, res) => {
+  //   const { channelId, userId, sender, content } = req.body;
+  
+  //   // Validate channelId and userId
+  //   if (!ObjectId.isValid(channelId) || !ObjectId.isValid(userId)) {
+  //     return res.status(400).json({ error: 'Invalid channelId or userId' });
+  //   }
+  
+  //   try {
+  //     // Prepare the message object
+  //     const message = {
+  //       channelId: new ObjectId(channelId),  // Use 'new' with ObjectId
+  //       userId: new ObjectId(userId),        // Use 'new' with ObjectId
+  //       sender,
+  //       content,
+  //       timestamp: new Date(),
+  //     };
+  
+  //     // If an image is provided, include the image path in the message
+  //     if (req.file) {
+  //       message.image = req.file.path; // Save the image file path
+  //     }
+  
+  //     // Log the message for debugging purposes
+  //     console.log('Message to insert:', message);
+  
+  //     // Store the message in the database
+  //     const db = req.app.locals.db; // Assuming db is passed through middleware or set in app.locals
+  //     await db.collection('messages').insertOne(message);
+  
+  //     res.status(201).json({ success: true, message });
+  //   } catch (error) {
+  //     console.error('Error uploading message:', error);
+  //     res.status(500).json({ error: 'Error uploading message' });
+  //   }
+  // });
+  router.post('/message', upload.single('image'), async (req, res) => {
+    const { channelId, userId, sender, content } = req.body;
+  
+    // Validate channelId and userId
+    if (!ObjectId.isValid(channelId) || !ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid channelId or userId' });
+    }
+  
+    try {
+      // Fetch the user to get the avatar
+      const db = req.app.locals.db;
+      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
+  
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+  
+      // Prepare the message object
+      const message = {
+        channelId: new ObjectId(channelId),
+        userId: new ObjectId(userId),
+        sender: user.username,
+        content,
+        avatar: user.avatar ? `http://localhost:3000/${user.avatar}` : 'http://localhost:3000/uploads/default-avatar.png', // Ensure the full path is included
+        timestamp: new Date(),
+      };
+  
+      // If an image is provided, include the image path in the message
+      if (req.file) {
+        message.image = req.file.path; // Save the image file path
+      }
+  
+      // Log the message for debugging purposes
+      console.log('Message to insert:', message);
+  
+      // Store the message in the database
+      await db.collection('messages').insertOne(message);
+  
+      res.status(201).json({ success: true, message });
+    } catch (error) {
+      console.error('Error uploading message:', error);
+      res.status(500).json({ error: 'Error uploading message' });
+    }
+  });
+  
+  // GET: Retrieve all messages from a specific channel
+  router.get('/channels/:channelId/messages', authorize(['user', 'group-admin', 'super-admin']), async (req, res) => {
+    const { channelId } = req.params;
+
+    try {
+      // Validate the channelId
+      if (!ObjectId.isValid(channelId)) {
+        return res.status(400).send('Invalid channelId');
+      }
+
+      // Fetch messages associated with the channelId from the messages collection
+      const messages = await db.collection('messages').find({ channelId: ObjectId.createFromHexString(channelId) }).toArray();
+
+      res.json(messages);
+    } catch (error) {
+      console.error('Error retrieving messages:', error);
+      res.status(500).send('Error retrieving messages');
+    }
+  });
+
+  module.exports = router;
+  return router;
+};

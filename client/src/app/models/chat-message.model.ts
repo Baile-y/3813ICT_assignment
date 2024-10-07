@@ -1,6 +1,10 @@
 export interface Message {
-  id: number;
-  content: string;
+  _id: string;
+  channelId: string;  
+  userId: string;
   sender: string;
+  content: string;
   timestamp: Date;
+  image?: string;
+  avatar?: string;
 }

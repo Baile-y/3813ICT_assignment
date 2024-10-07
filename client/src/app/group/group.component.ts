@@ -15,16 +15,14 @@ import { AuthService } from '../services/auth.service';
 })
 export class GroupComponent implements OnInit {
   groups: Group[] = [];
-  selectedGroupId: number | null = null;
+  selectedGroupId: string | null = null;
   newGroupName: string = '';
   selectedGroup: Group | null = null;
 
   constructor(private groupService: GroupService, private authService: AuthService, private changeDetectorRef: ChangeDetectorRef) { }
 
   ngOnInit(): void {
-    this.groupService.getGroups().subscribe((groups: Group[]) => {
-      this.groups = groups;
-    });
+    this.loadGroups();
   }
 
   createGroup(groupName: string): void {
@@ -32,17 +30,13 @@ export class GroupComponent implements OnInit {
       console.error('Group name cannot be empty.');
       return;
     }
-
+  
     this.groupService.createGroup(groupName).subscribe({
       next: (group: Group | null) => {
         if (group) {
-          this.groups.push(group);
-          this.selectedGroupId = group.id;
-
-          // Ensure the group is saved before loading channels
-          setTimeout(() => {
-            this.selectGroup(group);
-          }, 100); // Short delay to ensure the group is saved
+          this.groups.push(group); 
+          this.selectedGroupId = group._id;
+          this.selectGroup(group);
         }
       },
       error: (err: any) => {
@@ -51,28 +45,29 @@ export class GroupComponent implements OnInit {
     });
   }
 
+  loadGroups(): void {
+    this.groupService.getGroups().subscribe(groups => {
+      this.groups = groups;
+    }, error => {
+      console.error('Error fetching groups:', error);
+    });
+  }
+
   canDeleteGroup(group: Group): boolean {
     const user = this.authService.getCurrentUser();
-    const isSuperAdmin = user.roles.includes('super-admin');
-    const isGroupAdmin = group.adminId === user.id;
-    const isPromotedAdmin = group.members.some(member => member.userId === user.id && member.role === 'group-admin');
-
+    if (!user) return false;  // Ensure user is not null
+    const isSuperAdmin = user.roles?.includes('super-admin') || false;  // Handle null or undefined roles
+    const isGroupAdmin = group.adminId === user._id;
+    const isPromotedAdmin = group.members?.some(member => member.userId === user._id && member.role === 'group-admin');
     return isSuperAdmin || isGroupAdmin || isPromotedAdmin;
   }
 
-  canCreateGroup(): boolean {
-    const user = this.authService.getCurrentUser();
-    return user.roles.includes('group-admin') || user.roles.includes('super-admin');
-  }
-
-  deleteGroup(groupId: number): void {
+  deleteGroup(groupId: string): void {
     this.groupService.deleteGroup(groupId).subscribe({
       next: (response) => {
         if (response && response.success) {
-          this.groups = this.groups.filter(group => group.id !== groupId);
+          this.groups = this.groups.filter(group => group._id !== groupId);
           console.log('Group deleted successfully.');
-
-          // Clear the selected group if the deleted group was the selected one
           if (this.selectedGroupId === groupId) {
             this.selectedGroup = null;
             this.selectedGroupId = null;
@@ -89,19 +84,19 @@ export class GroupComponent implements OnInit {
 
   userHasAccess(group: Group): boolean {
     const user = this.authService.getCurrentUser();
-    const hasAccess = group.members.some(member => member.userId === user.id) || user.roles.includes('super-admin');
-    return hasAccess;
+    if (!user) return false; // Check for null user
+    return group.members?.some(member => member.userId === user._id) || user.roles?.includes('super-admin') || false;
   }
 
 
   selectGroup(group: Group): void {
     if (this.userHasAccess(group)) {
-      if (this.selectedGroupId === group.id) {
+      if (this.selectedGroupId === group._id) {
         this.selectedGroupId = null; // Unselect the group if it's already selected
         this.selectedGroup = null; // Reset the selected group
       }
       else {
-        this.selectedGroupId = group.id;
+        this.selectedGroupId = group._id;
         this.selectedGroup = group;
       }
     } else {
@@ -111,13 +106,12 @@ export class GroupComponent implements OnInit {
     }
   }
 
-  promoteUser(groupId: number, userId: number): void {
+  promoteUser(groupId: string, userId: string): void {
     this.groupService.promoteUserToAdmin(groupId, userId).subscribe({
       next: (success) => {
         if (success) {
-          // Update the UI accordingly
-          const group = this.groups.find(g => g.id === groupId);
-          const member = group?.members.find(m => m.userId === userId);
+          const group = this.groups.find(g => g._id === groupId);
+          const member = group?.members?.find(m => m.userId === userId);
           if (member) {
             member.role = 'admin'; // Reflect the promotion in the UI
           }
@@ -132,29 +126,22 @@ export class GroupComponent implements OnInit {
     });
   }
 
-  canPromoteToAdmin(member: { userId: number, role: string }): boolean {
+  canPromoteToAdmin(member: { userId: string, role: string }): boolean {
     const user = this.authService.getCurrentUser();
-    // Only super-admins or current group admins can promote others to admin
-    return user.roles.includes('super-admin') || this.selectedGroup?.adminId === user.id;
+    return user?.roles?.includes('super-admin') || this.selectedGroup?.adminId === user?._id || false;
   }
 
-  inviteUserToGroup(groupId: number, userIdString: string): void {
-    const userId = parseInt(userIdString, 10); // Convert the string to a number
-    if (isNaN(userId)) {
-      console.error('Invalid user ID');
-      return;
-    }
-    this.groupService.inviteUserToGroup(groupId, userId);
+  inviteUserToGroup(groupId: string, userIdString: string): void {
+    this.groupService.inviteUserToGroup(groupId, userIdString);
   }
 
-  deleteUserFromGroup(groupId: number, userId: number): void {
+  deleteUserFromGroup(groupId: string, userId: string): void {
     if (confirm('Are you sure you want to remove this user from the group?')) {
       this.groupService.deleteUserFromGroup(groupId, userId).subscribe({
         next: (response) => {
           if (response && response.success && this.selectedGroup && this.selectedGroup.members) {
             this.selectedGroup.members = this.selectedGroup.members.filter(member => member.userId !== userId);
             console.log(this.selectedGroup.members);
-            console.log(this.groups);
           } else {
             console.error('Failed to remove user from group on the server.');
           }
@@ -169,22 +156,24 @@ export class GroupComponent implements OnInit {
   canDeleteUser(member: any): boolean {
     const user = this.authService.getCurrentUser();
     return this.selectedGroup &&
-      (user.roles.includes('super-admin') ||
-        (this.selectedGroup.adminId === user.id && member.role !== 'admin'));
+      (user?.roles?.includes('super-admin') ||
+        (this.selectedGroup.adminId === user?._id && member.role !== 'admin')) || false;
   }
 
-  requestToJoin(groupId: number): void {
+  requestToJoin(groupId: string): void {
     const user = this.authService.getCurrentUser();
-    this.groupService.requestToJoinGroup(groupId, user.id, user.username).subscribe(success => {
-      if (success) {
-        console.log('Join request sent successfully.');
-      } else {
-        console.error('Failed to send join request.');
-      }
-    });
+    if (user) {
+      this.groupService.requestToJoinGroup(groupId, user._id, user.username).subscribe(success => {
+        if (success) {
+          console.log('Join request sent successfully.');
+        } else {
+          console.error('Failed to send join request.');
+        }
+      });
+    }
   }
 
-  approveRequest(groupId: number, userId: number): void {
+  approveRequest(groupId: string, userId: string): void {
     this.groupService.approveJoinRequest(groupId, userId).subscribe(success => {
       if (success && this.selectedGroup) {
         this.selectedGroup.members.push({ userId, role: 'user' });
@@ -195,7 +184,7 @@ export class GroupComponent implements OnInit {
     });
   }
 
-  denyRequest(groupId: number, userId: number): void {
+  denyRequest(groupId: string, userId: string): void {
     this.groupService.denyJoinRequest(groupId, userId).subscribe(success => {
       if (success && this.selectedGroup) {
         this.selectedGroup.joinRequests = this.selectedGroup.joinRequests?.filter(request => request.userId !== userId);
@@ -205,12 +194,11 @@ export class GroupComponent implements OnInit {
     });
   }
 
-  leaveGroup(groupId: number): void {
+  leaveGroup(groupId: string): void {
     if (confirm('Are you sure you want to leave this group?')) {
       this.groupService.leaveGroup(groupId).subscribe(success => {
         if (success) {
-          // Remove the group from the list and clear selection
-          this.groups = this.groups.filter(group => group.id !== groupId);
+          this.groups = this.groups.filter(group => group._id !== groupId);
           this.selectedGroup = null;
           this.selectedGroupId = null;
           console.log('You have left the group.');
@@ -220,5 +208,10 @@ export class GroupComponent implements OnInit {
       });
     }
   }
-
+  
+  canCreateGroup(): boolean {
+    const user = this.authService.getCurrentUser();
+    return user ? user.roles.includes('super-admin') : false;
+  }
+  
 }

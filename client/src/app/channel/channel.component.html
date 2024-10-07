@@ -3,7 +3,7 @@
   <ul>
     <li *ngFor="let channel of channels">
       <p>{{ channel.name }}</p>
-      <button (click)="deleteChannel(channel.id)">Delete Channel</button>
+      <button (click)="deleteChannel(channel._id)">Delete Channel</button>
     </li>
   </ul>
   <input #channelNameInput type="text" placeholder="Channel Name" />

@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
-import { tap, map } from 'rxjs/operators';
+import { tap, map, catchError } from 'rxjs/operators';
 import { Channel } from '../models/channel.model';
 import { AuthService } from './auth.service';
 import { Message } from '../models/chat-message.model';
@@ -14,98 +14,75 @@ export class ChannelService {
 
   constructor(private http: HttpClient, private authService: AuthService) {}
 
-  createChannel(groupId: number, name: string): Observable<Channel> {
-    const headers = this.buildHeadersForGroup(groupId);
+  createChannel(groupId: string, name: string): Observable<Channel | null> {
+    const headers = this.buildHeaders();
     return this.http.post<{ success: boolean, channel: Channel }>(`${this.baseUrl}/${groupId}/channels`, { name }, { headers }).pipe(
-      tap((response) => {
-        this.updateGroupInLocalStorage(groupId, response.channel);
-      }),
-      map(response => response.channel)
+      map(response => response.success ? response.channel : null),
+      catchError(error => {
+        console.error('Failed to create channel', error);
+        return of(null); // Return null if channel creation fails
+      })
     );
   }  
   
-  getChannels(groupId: number): Observable<Channel[]> {
-    const headers = this.buildHeadersForGroup(groupId);
-    return this.http.get<{ channels: Channel[] }>(`${this.baseUrl}/${groupId}`, { headers }).pipe(
-      map(response => response.channels)  // Map to the channels array directly
+  getChannels(groupId: string): Observable<Channel[]> {
+    return this.http.get<{ channels: Channel[] }>(`${this.baseUrl}/${groupId}`, {
+      headers: this.buildHeaders() // Ensure headers are built correctly
+    }).pipe(
+      map(response => response.channels || []),
+      catchError(error => {
+        console.error('Failed to fetch channels:', error);
+        return of([]); // Return an empty array on failure
+      })
     );
   }
+  
 
-  deleteChannel(groupId: number, channelId: number): Observable<void> {
-    const headers = this.buildHeadersForGroup(groupId);
+  // Adjusted to use `string` for `groupId` and `channelId`
+  deleteChannel(groupId: string, channelId: string): Observable<void> {
+    const headers = this.buildHeaders();
     return this.http.delete<void>(`${this.baseUrl}/${groupId}/channels/${channelId}`, { headers }).pipe(
-      tap(() => {
-        this.removeChannelFromGroupInLocalStorage(groupId, channelId);
+      catchError(error => {
+        console.error('Failed to delete channel', error);
+        return of(); // Return void on failure
       })
     );
   }
 
-  private buildHeadersForGroup(groupId: number): HttpHeaders {
-    const groupsJson = localStorage.getItem('groups');
-    const groups = groupsJson ? JSON.parse(groupsJson) : [];
-    const group = groups.find((g: any) => g.id === groupId);
+  // Get all channels for chat purposes
+  getChannelsForChat(userId: string): Observable<Channel[]> {
+    const headers = this.buildHeaders();
+    return this.http.get<{ channels: Channel[] }>(`${this.baseUrl}/${userId}`, { headers }).pipe(
+      map(response => response.channels),
+      catchError(error => {
+        console.error('Failed to fetch channels for chat', error);
+        return of([]); // Return empty array if channels can't be fetched
+      })
+    );
+  }
 
-    if (!group) {
-      throw new Error(`Group with ID ${groupId} not found in local storage`);
-    }
+  // Update messages in a channel
+  updateChannelMessages(channelId: string, messages: Message[]): Observable<boolean> {
+    const headers = this.buildHeaders();
+    return this.http.put<{ success: boolean }>(`${this.baseUrl}/${channelId}/messages`, { messages }, { headers }).pipe(
+      map(response => response.success),
+      catchError(error => {
+        console.error('Failed to update messages for channel', error);
+        return of(false); // Return false if updating messages fails
+      })
+    );
+  }
 
+  // Build HTTP headers for requests
+  private buildHeaders(): HttpHeaders {
     const user = this.authService.getCurrentUser();
+    if (!user) {
+      throw new Error('User not logged in');  // Throw an error or handle appropriately
+    }
     return new HttpHeaders({
       'Content-Type': 'application/json',
-      'group-data': JSON.stringify(group),
-      'user-roles': JSON.stringify(user?.roles || []),
-      'user-id': user?.id || ''
+      'user-id': user._id.toString(),  // Safe to use after check
+      'user-roles': JSON.stringify(user.roles)
     });
-  }
-
-  private updateGroupInLocalStorage(groupId: number, channel: Channel): void {
-    const groupsJson = localStorage.getItem('groups');
-    const groups = groupsJson ? JSON.parse(groupsJson) : [];
-    const groupIndex = groups.findIndex((g: any) => g.id === groupId);
-  
-    if (groupIndex !== -1) {
-      groups[groupIndex].channels.push(channel);
-      localStorage.setItem('groups', JSON.stringify(groups));
-      console.log('Updated groups in local storage:', groups);
-    }
-  }
-
-  private removeChannelFromGroupInLocalStorage(groupId: number, channelId: number): void {
-    const groupsJson = localStorage.getItem('groups');
-    const groups = groupsJson ? JSON.parse(groupsJson) : [];
-    const groupIndex = groups.findIndex((g: any) => g.id === groupId);
-
-    if (groupIndex !== -1) {
-      groups[groupIndex].channels = groups[groupIndex].channels.filter((c: Channel) => c.id !== channelId);
-      localStorage.setItem('groups', JSON.stringify(groups));
-      console.log('Updated groups in local storage after channel deletion:', groups);
-    }
-  }
-
-  getChannelsForChat(): Observable<Channel[]> {
-    const groupsJson = localStorage.getItem('groups');
-    const groups = groupsJson ? JSON.parse(groupsJson) : [];
-    let channels: Channel[] = [];
-    groups.forEach((group: any) => {
-      channels = channels.concat(group.channels);
-    });
-    return of(channels);
-  }
-
-  updateChannelMessages(channelId: number, messages: Message[]): void {
-    const groupsJson = localStorage.getItem('groups');
-    const groups = groupsJson ? JSON.parse(groupsJson) : [];
-    const group = groups.find((g: any) => g.channels.some((c: any) => c.id === channelId));
-  
-    if (group) {
-      const channel = group.channels.find((c: any) => c.id === channelId);
-      if (channel) {
-        if (!channel.messages) {
-          channel.messages = []; // Ensure the messages array exists
-        }
-        channel.messages = messages;
-        localStorage.setItem('groups', JSON.stringify(groups));
-      }
-    }
   }
 }

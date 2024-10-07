@@ -8,16 +8,37 @@ import { AuthService } from './auth.service';
   providedIn: 'root'
 })
 export class MessageService {
-  private baseUrl = 'http://localhost:3000/api';
+  private baseUrl = 'http://localhost:3000/api/channels';
 
   constructor(private http: HttpClient, private authService: AuthService) {}
 
-  getMessages(groupId: number, channelId: number): Observable<{ messages: Message[] }> {
-    return this.http.get<{ messages: Message[] }>(`${this.baseUrl}/${groupId}/channels/${channelId}/messages`);
+  // Send a message
+  sendMessage(message: Message): Observable<any> {
+    const headers = this.buildHeaders(); // Use buildHeaders() to get the headers
+    return this.http.post(`${this.baseUrl}/messages`, message, { headers });
   }
+  
+  // Get messages for a channel
+  getMessagesForChannel(channelId: string): Observable<Message[]> {
+    const headers = this.buildHeaders(); // Add headers
+    return this.http.get<Message[]>(`${this.baseUrl}/channels/${channelId}/messages`, { headers });
+  }  
 
-  sendMessage(groupId: number, channelId: number, content: string): Observable<Message> {
-    const sender = this.authService.getCurrentUser().username;
-    return this.http.post<Message>(`${this.baseUrl}/${groupId}/channels/${channelId}/messages`, { content, sender });
+  uploadImageWithMessage(formData: FormData) {
+    return this.http.post<{ success: boolean, message: any }>('http://localhost:3000/api/channels/message', formData);
   }
+  
+  // Build HTTP headers for requests
+  private buildHeaders(): HttpHeaders {
+    const user = this.authService.getCurrentUser();
+    if (!user) {
+      throw new Error('User not logged in'); // Throw an error or handle appropriately
+    }
+    return new HttpHeaders({
+      'Content-Type': 'application/json',
+      'user-id': user._id.toString(), // MongoDB ObjectId as string
+      'user-roles': JSON.stringify(user.roles)
+    });
+  }
+  
 }

@@ -16,10 +16,15 @@ export class InvitesComponent implements OnInit {
   constructor(private groupService: GroupService) { }
 
   ngOnInit(): void {
-    this.groupService.getInvitations().subscribe((groups: Group[]) => {
-      this.invitations = groups;
+    this.groupService.getInvitations().subscribe({
+      next: (invitations: Group[]) => {
+        this.invitations = invitations;  // Handle the list of invitations
+      },
+      error: (err) => {
+        console.error('Failed to fetch invitations', err);
+      }
     });
-  }
+  }  
 
   loadInvitations(): void {
     this.groupService.getInvitations().subscribe((groups: Group[]) => {
@@ -27,7 +32,7 @@ export class InvitesComponent implements OnInit {
     });
   }
   
-  acceptInvite(groupId: number): void {
+  acceptInvite(groupId: string): void {
     this.groupService.acceptInvite(groupId).subscribe(success => {
       if (success) {
         this.loadInvitations(); // Reload groups to update UI
@@ -38,7 +43,7 @@ export class InvitesComponent implements OnInit {
   }
 
 
-  declineInvite(groupId: number): void {
+  declineInvite(groupId: string): void {
     this.groupService.declineInvite(groupId).subscribe(success => {
       if (success) {
         this.loadInvitations(); // Reload groups to update UI

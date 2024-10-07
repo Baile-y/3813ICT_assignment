@@ -1,5 +1,6 @@
 export interface User {
-    id: number;
+    _id: string;
+    groupId: string;
     username: string;
     password: string;
     roles: string[];  // Array of roles such as 'user', 'group-admin', 'super-admin'

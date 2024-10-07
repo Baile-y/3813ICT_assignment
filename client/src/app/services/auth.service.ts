@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
-import { User } from '../models/user.model';
 import { catchError, tap } from 'rxjs/operators';
+import { User } from '../models/user.model';
 
 interface PromotionResponse {
   success: boolean;
@@ -13,128 +13,96 @@ interface PromotionResponse {
 @Injectable({
   providedIn: 'root'
 })
-
 export class AuthService {
   private baseUrl = 'http://localhost:3000/api/users';
+  private currentUser: User | null = null;  // In-memory storage for current user
 
   constructor(private http: HttpClient) {}
 
-  login(username: string, password: string): Observable<any> {
-    return new Observable(observer => {
-      this.http.post(`${this.baseUrl}/login`, { username, password }).subscribe({
-        next: (response: any) => {
-          console.log('Login successful, response:', response);
-          this.setUserData(response);
-          observer.next(response);
-          observer.complete();
-        },
-        error: (err) => {
-          console.error('Login failed:', err);
-          observer.error(err);
-        }
-      });
-    });
-  }
-
+  // Method to check if user is authenticated
   isAuthenticated(): boolean {
-    // Check if the user is authenticated by checking local storage or other means
-    return !!localStorage.getItem('user');
-  }
-  
-  private setUserData(user: any): void {
-    console.log('Setting user data:', user);
-    localStorage.setItem('user', JSON.stringify(user));
+    const user = localStorage.getItem('user'); // Check if the user is stored in local storage
+    return !!user; // If user exists, return true (authenticated)
   }
 
-  getCurrentUser() {
-    const user = JSON.parse(localStorage.getItem('user')!);
-    return user;
-  }  
+  // Login method that stores user in local storage
+  login(username: string, password: string): Observable<any> {
+    return this.http.post<{ user: User }>(`${this.baseUrl}/login`, { username, password }).pipe(
+      tap(response => {
+        if (response && response.user) {
+          localStorage.setItem('user', JSON.stringify(response.user));  // Store the user in local storage
+          this.currentUser = response.user;  // Store the user in memory
+        }
+      }),
+      catchError((err) => {
+        console.error('Login failed', err);
+        return of(null);
+      })
+    );
+  }
 
+  // Clears the user data from memory and local storage
   clearUserData(): void {
-    console.log('Clearing user data from localStorage');
-    localStorage.removeItem('user');
-    localStorage.removeItem('users');
+    localStorage.removeItem('user');  // Remove user from local storage
+    this.currentUser = null;  // Clear the in-memory user data
   }
 
-  isSuperAdmin(): boolean {
-    const user = this.getCurrentUser();
-    return user && user.roles.includes('super-admin');
+  // Returns the current user from memory or local storage
+  getCurrentUser(): User | null {
+    if (!this.currentUser) {
+      const user = localStorage.getItem('user'); // Fetch from storage if not in memory
+      return user ? JSON.parse(user) : null;
+    }
+    return this.currentUser;
   }
 
-  isGroupAdmin(): boolean {
-    const user = this.getCurrentUser();
-    return user && user.roles.includes('group-admin');
-  }
-
-  isUser(): boolean {
-    const user = this.getCurrentUser();
-    return user && user.roles.includes('user');
-  }
-
+  // Checks if a user is logged in by verifying if user exists in memory or local storage
   isLoggedIn(): boolean {
     return !!this.getCurrentUser();
   }
 
-  deleteUser(userId: number): Observable<any> {
-    return this.http.delete<{ success: boolean, message?: string }>(`${this.baseUrl}/delete/${userId}`, {
-        headers: this.buildHeaders()
-    }).pipe(
-        tap(response => {
-            if (response.success) {
-                console.log('Account deletion successful');
-            } else {
-                console.error('Account deletion failed:', response.message);
-            }
-        }),
-        catchError(error => {
-            console.error('Failed to delete account:', error);
-            return of({ success: false, message: 'Deletion error' }); // Handle the error appropriately
-        })
-    );
-}
-
-
-  loadAllUsersToLocalStorage(): void {
-    const headers = this.buildHeaders();
-
-    this.http.get<User[]>(`${this.baseUrl}/all`, { headers })
-      .subscribe({
-        next: (users: User[]) => {
-          console.log('Users fetched from server:', users);
-          localStorage.setItem('users', JSON.stringify(users));
-        },
-        error: (err) => {
-          console.error('Failed to load users from the server:', err);
-        }
-      });
-  }
-
-  getUsersFromLocalStorage() {
-    const usersJson = localStorage.getItem('users');
-    return usersJson ? JSON.parse(usersJson) : [];
-  }
-
-  // Example method to delete a user from local storage (if needed)
-  deleteUserFromLocalStorage(userId: number): void {
-    let users = this.getUsersFromLocalStorage();
-    users = users.filter((user: User) => user.id !== userId);
-    localStorage.setItem('users', JSON.stringify(users));
-  }
-
-  private buildHeaders(): HttpHeaders {
+  // Super Admin check
+  isSuperAdmin(): boolean {
     const user = this.getCurrentUser();
-    return new HttpHeaders({
-      'Content-Type': 'application/json',
-      'user-id': user.id.toString(),
-      'user-roles': JSON.stringify(user.roles)
-    });
+    return user ? user.roles.includes('super-admin') : false;
   }
 
-  promoteToSuperAdmin(userId: number): Observable<PromotionResponse | null> {
-    const headers = this.buildHeaders();
-  
-    return this.http.post<PromotionResponse>(`${this.baseUrl}/promote-to-superadmin`, { userId }, { headers }).pipe(
+  // Group Admin check
+  isGroupAdmin(): boolean {
+    const user = this.getCurrentUser();
+    return user ? user.roles.includes('group-admin') : false;
+  }
+
+  // Standard User check
+  isUser(): boolean {
+    const user = this.getCurrentUser();
+    return user ? user.roles.includes('user') : false;
+  }
+
+  // Delete user API call
+  deleteUser(userId: string): Observable<any> {
+    return this.http.delete<{ success: boolean, message?: string }>(`${this.baseUrl}/delete/${userId}`, {
+      headers: this.buildHeaders()
+    }).pipe(
+      tap(response => {
+        if (response.success) {
+          console.log('Account deletion successful');
+        } else {
+          console.error('Account deletion failed:', response.message);
+        }
+      }),
+      catchError(error => {
+        console.error('Failed to delete account:', error);
+        return of({ success: false, message: 'Deletion error' });
+      })
+    );
+  }
+
+  // Promote user to Super Admin
+  promoteToSuperAdmin(userId: string): Observable<PromotionResponse | null> {
+    return this.http.post<PromotionResponse>(`${this.baseUrl}/promote-to-superadmin`, { userId }, {
+      headers: this.buildHeaders()
+    }).pipe(
       tap(response => {
         if (response && response.success) {
           console.log(`User ${userId} has been promoted to Super Admin`);
@@ -142,11 +110,12 @@ export class AuthService {
       }),
       catchError(error => {
         console.error('Failed to promote user to Super Admin', error);
-        return of(null); // Handle the error appropriately
+        return of(null);
       })
     );
   }
-  
+
+  // Register a new user
   register(username: string, password: string): Observable<{ success: boolean, message?: string }> {
     return this.http.post<{ success: boolean, message?: string }>(`${this.baseUrl}/register`, { username, password }).pipe(
       tap(response => {
@@ -158,12 +127,33 @@ export class AuthService {
       }),
       catchError(error => {
         console.error('Registration failed:', error);
-        // Extract the error message from the server response
         const errorMessage = error.error?.message || 'Registration error';
-        return of({ success: false, message: errorMessage }); // Return the error message
+        return of({ success: false, message: errorMessage });
       })
     );
   }
-  
-  
+
+  // Helper method to build HTTP headers
+  private buildHeaders(): HttpHeaders {
+    const user = this.getCurrentUser();
+    if (!user) {
+      throw new Error('No user is logged in');
+    }
+
+    return new HttpHeaders({
+      'Content-Type': 'application/json',
+      'user-id': user._id,  // Use in-memory or local storage user
+      'user-roles': JSON.stringify(user.roles)
+    });
+  }
+
+  // Fetch all users
+  getAllUsers(): Observable<User[]> {
+    return this.http.get<User[]>(`${this.baseUrl}/all`).pipe(
+      catchError(err => {
+        console.error('Failed to fetch users', err);
+        return of([]); // Return an empty array on failure
+      })
+    );
+  }
 }

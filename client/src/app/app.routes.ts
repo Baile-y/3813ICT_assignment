@@ -10,11 +10,13 @@ import { GroupAdminGuard } from './guards/group-admin.guard';
 import { InvitesComponent } from './invite/invite.component';
 import { AdminComponent } from './admin/admin.component';
 import { RegisterComponent } from './register/register.component';
+import { ProfileComponent } from './profile/profile.component';
 
 export const appRoutes: Routes = [
   { path: 'login', component: LoginComponent },
   { path: 'group', component: GroupComponent, canActivate: [AuthGuard] },
   { path: 'channel', component: ChannelComponent, canActivate: [AuthGuard] },
+  { path: 'profile', component: ProfileComponent, canActivate: [AuthGuard] },
   { path: 'chat', component: ChatComponent, canActivate: [AuthGuard] },
   { path: 'invites', component: InvitesComponent, canActivate: [AuthGuard]},
   { path: 'admin', component: AdminComponent, canActivate: [SuperAdminGuard]},

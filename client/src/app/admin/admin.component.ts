@@ -15,28 +15,33 @@ export class AdminComponent implements OnInit {
   isLoading = true; // Track loading state
 
   constructor(private authService: AuthService) { }
-  
+
   ngOnInit(): void {
-    console.log(this.isLoading);
     this.loadUsers();
-    console.log("HERE", this.users);
-    console.log(this.isLoading);
   }
 
+  // Fetch users from the backend instead of local storage
   loadUsers(): void {
-    // this.authService.loadAllUsersToLocalStorage();
-    this.users = this.authService.getUsersFromLocalStorage();
-    this.isLoading = false;
+    this.authService.getAllUsers().subscribe({
+      next: (users: User[]) => {
+        this.users = users;
+        this.isLoading = false; // Update loading state
+      },
+      error: (err) => {
+        console.error('Failed to load users:', err);
+        this.isLoading = false; // Stop loading in case of error
+      }
+    });
   }
 
-  deleteUser(userId: number): void {
+  // Delete user from the backend
+  deleteUser(userId: string): void {
     if (confirm('Are you sure you want to delete this user?')) {
       this.authService.deleteUser(userId).subscribe({
         next: (response) => {
           console.log(response.message);
-          this.users = this.users.filter(user => user.id !== userId); // Update the local users array
-          // this.authService.updateUsersInLocalStorage(this.users); // Update local storage
-          this.authService.getUsersFromLocalStorage();
+          // Remove user from the local users array after successful deletion
+          this.users = this.users.filter(user => user._id !== userId);
         },
         error: (err) => {
           console.error('Failed to delete user:', err);
@@ -44,19 +49,21 @@ export class AdminComponent implements OnInit {
       });
     }
   }
-  
+
+  // Check if the current user is a Super Admin
   isSuperAdmin(): boolean {
     const user = this.authService.getCurrentUser();
-    return user.roles.includes('super-admin');
+    return user?.roles.includes('super-admin') || false; // Optional chaining and default value
   }
 
-  promoteToSuperAdmin(userId: number): void {
+  // Promote a user to Super Admin
+  promoteToSuperAdmin(userId: string): void {
     if (confirm('Are you sure you want to promote this user to Super Admin?')) {
       this.authService.promoteToSuperAdmin(userId).subscribe({
         next: (response) => {
           if (response && response.success) {
             console.log(`User ${userId} has been promoted to Super Admin`);
-            this.users = this.authService.getUsersFromLocalStorage();
+            this.loadUsers(); // Reload the users list after promotion
           }
         },
         error: (err) => {
@@ -64,6 +71,5 @@ export class AdminComponent implements OnInit {
         }
       });
     }
-  }    
-  
+  }
 }

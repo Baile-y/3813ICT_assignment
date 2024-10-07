@@ -3,8 +3,8 @@
     <ul>
       <li *ngFor="let invite of invitations">
         <span>{{ invite.name }}</span>
-        <button (click)="acceptInvite(invite.id)">Accept</button>
-        <button (click)="declineInvite(invite.id)">Decline</button>
+        <button (click)="acceptInvite(invite._id)">Accept</button>
+        <button (click)="declineInvite(invite._id)">Decline</button>
       </li>
     </ul>
   </div>

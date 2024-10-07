@@ -10,14 +10,14 @@ import { Channel } from '../models/channel.model';
   templateUrl: './channel.component.html',
   styleUrls: ['./channel.component.css']
 })
-export class ChannelComponent implements OnInit {
-  @Input() groupId!: number;
+export class ChannelComponent implements OnInit, OnChanges {
+  @Input() groupId!: string; // Ensure groupId is a string
   channels: Channel[] = [];
 
   constructor(private channelService: ChannelService) {}
 
   ngOnInit(): void {
-    console.log('groupId:', this.groupId); 
+    console.log('groupId:', this.groupId);
     if (this.groupId) {
       this.loadChannels();
     } else {
@@ -34,7 +34,7 @@ export class ChannelComponent implements OnInit {
   loadChannels(): void {
     this.channelService.getChannels(this.groupId).subscribe({
       next: (channels: Channel[]) => {
-        this.channels = channels;  // Ensure this.channels is set to an array of channel objects
+        this.channels = channels; // Set channels
       },
       error: (err) => {
         console.error('Failed to load channels:', err);
@@ -46,8 +46,10 @@ export class ChannelComponent implements OnInit {
     if (this.groupId) {
       this.channelService.createChannel(this.groupId, name).subscribe({
         next: (channel) => {
-          console.log('Channel created successfully:', channel); 
-          this.channels.push(channel); 
+          console.log('Channel created successfully:', channel);
+          if (channel) {
+            this.channels.push(channel); // Add new channel to list
+          }
         },
         error: (err) => {
           console.error('Failed to create channel:', err);
@@ -57,13 +59,13 @@ export class ChannelComponent implements OnInit {
       console.error('Cannot create channel because groupId is undefined.');
     }
   }
-  
-  deleteChannel(channelId: number): void {
+
+  deleteChannel(channelId: string): void {
     if (this.groupId) {
       this.channelService.deleteChannel(this.groupId, channelId).subscribe({
         next: () => {
           console.log('Channel deleted:', channelId);
-          this.channels = this.channels.filter(channel => channel.id !== channelId);
+          this.channels = this.channels.filter(channel => channel._id !== channelId); // Update channels array
         },
         error: (err) => {
           console.error('Failed to delete channel:', err);

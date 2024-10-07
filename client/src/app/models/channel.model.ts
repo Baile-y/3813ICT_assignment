@@ -2,7 +2,8 @@
 import { Message } from './chat-message.model';
 
 export interface Channel {
-  id: number;
+  _id: string;
+  groupId: string;
   name: string;
   messages: Message[];
 }

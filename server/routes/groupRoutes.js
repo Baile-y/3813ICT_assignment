@@ -1,35 +1,6 @@
 const express = require('express');
-const fs = require('fs');
+const { ObjectId } = require('mongodb');
 const router = express.Router();
-
-const groupsPath = './data/groups.json'; // Path to the JSON file
-
-// Helper function to load groups from JSON file
-const loadGroups = () => {
-  try {
-    const dataBuffer = fs.readFileSync(groupsPath);
-    const dataJSON = dataBuffer.toString();
-    return JSON.parse(dataJSON);
-  } catch (error) {
-    console.error("File not found or invalid JSON, initializing with empty groups array.");
-    return [];
-  }
-};
-
-// Helper function to save groups to JSON file
-const saveGroups = (groups) => {
-  const dataJSON = JSON.stringify(groups, null, 2);
-  fs.writeFileSync(groupsPath, dataJSON, (err) => {
-    if (err) {
-      console.error('Error saving groups:', err);
-    } else {
-      console.log('Groups saved successfully.');
-    }
-  });
-};
-
-// Load groups from JSON file at the start
-let groups = loadGroups();
 
 // Middleware to check roles and set user info
 const authorize = (requiredRoles) => {
@@ -40,7 +11,7 @@ const authorize = (requiredRoles) => {
     try {
       if (req.headers['user-roles']) {
         userRoles = JSON.parse(req.headers['user-roles']);
-        userId = req.headers['user-id'];  // Check if this is correctly coming in as a number/string
+        userId = req.headers['user-id'];
       } else if (req.body.user && req.body.user.roles) {
         userRoles = req.body.user.roles;
         userId = req.body.user.id;
@@ -60,254 +31,385 @@ const authorize = (requiredRoles) => {
   };
 };
 
-// Get all groups (with role-based access)
-router.get('/', authorize(['group-admin', 'super-admin', 'user']), (req, res) => {
-  res.json({ groups });
-});
+// Passing `db` as a parameter to the module
+module.exports = (db) => {
 
-// Create a group (Group Admin or Super Admin only)
-router.post('/create', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { name, adminId, members } = req.body;
-
-  const group = { id: groups.length + 1, name, adminId, channels: [], members };  // Using array index + 1 as ID
-  groups.push(group);
-
-  saveGroups(groups);  // Save updated groups to JSON file
-  res.json({ success: true, group });
-});
-
-// Delete a group (Group Admin can delete their own groups)
-router.delete('/:id', authorize(['group-admin', 'super-admin', 'user']), (req, res) => {
-  const groupId = parseInt(req.params.id);
-  const group = groups.find(g => g.id === groupId);
-
-  if (!group) {
-    return res.status(404).send('Group not found');
-  }
-
-  // Check if the user is the original group admin, a promoted admin, or a super admin
-  const isSuperAdmin = req.user.roles.includes('super-admin');
-  const isOriginalAdmin = group.adminId === parseInt(req.user.id);
-  const isPromotedAdmin = group.members.some(member => 
-    member.userId === parseInt(req.user.id) && member.role === 'group-admin'
-  );
-  
-  if (isSuperAdmin || isOriginalAdmin || isPromotedAdmin) {
-    const groupIndex = groups.findIndex(g => g.id === groupId);
-    if (groupIndex !== -1) {
-      groups.splice(groupIndex, 1);
-      saveGroups(groups);  // Save updated groups to JSON file
-      return res.json({ success: true });
+  /// Get all groups (with role-based access)
+  router.get('/', authorize(['group-admin', 'super-admin', 'user']), async (req, res) => {
+    try {
+      const groups = await db.collection('groups').find().toArray();
+      res.json(groups);
+    } catch (error) {
+      res.status(500).json({ error: 'Error fetching groups' });
     }
-  } else {
-    return res.status(403).send('Not authorized to delete this group');
-  }
-});
+  });
 
-// Create a channel within a group (Super Admin or Group Admin only)
-router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { groupId } = req.params;
-  const { name } = req.body;
-  const group = groups.find(g => g.id === parseInt(groupId));
+  // Create a group (Group Admin or Super Admin only)
+  router.post('/create', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { name, adminId, members } = req.body;
 
-  if (group && (group.adminId === req.user.id || req.user.roles.includes('super-admin'))) {
-    const channel = { id: group.channels.length + 1, name };
-    group.channels.push(channel);
-    saveGroups(groups);  // Save updated groups to JSON file
-    res.json({ success: true, channel });
-  } else {
-    console.log(`Group not found or user not authorized for ID: ${groupId}`);
-    res.status(404).send('Group not found or not authorized');
-  }
-});
+    // Validate input
+    if (!name || !adminId || !members) {
+      return res.status(400).json({ success: false, message: 'Invalid input: name, adminId, and members are required.' });
+    }
 
-// Delete a channel within a group (Super Admin or Group Admin only)
-router.delete('/:groupId/channels/:channelId', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { groupId, channelId } = req.params;
-  const group = groups.find(g => g.id === parseInt(groupId));
+    try {
+      const group = {
+        name,
+        adminId,
+        channels: [], // Initialize with empty channels
+        members,
+        createdAt: new Date(),
+        joinRequests: [],
+      };
 
-  if (group && (group.adminId === req.user.id || req.user.roles.includes('super-admin'))) {
-    group.channels = group.channels.filter(c => c.id !== parseInt(channelId));
-    saveGroups(groups);  // Save updated groups to JSON file
-    res.json({ success: true });
-  } else {
-    console.error(`Group not found or user not authorized for ID: ${groupId}`);
-    res.status(404).send('Group not found or not authorized');
-  }
-});
+      const result = await db.collection('groups').insertOne(group);
 
-// Invite a user to a group (Group Admin or Super Admin only)
-router.post('/:groupId/invite', authorize(['group-admin', 'super-admin']), (req, res) => {
+      // Check if the result is valid and contains the inserted ID
+      if (result.insertedId) {
+        // Retrieve the inserted group data
+        const newGroup = {
+          _id: result.insertedId,
+          ...group
+        };
+        return res.status(201).json({ success: true, group: newGroup });
+      } else {
+        return res.status(500).json({ success: false, message: 'Failed to create group.' });
+      }
+    } catch (error) {
+      console.error('Error creating group:', error); // Log the error for debugging
+      return res.status(500).json({ success: false, error: 'Error creating group' });
+    }
+  });
+
+
+  // Delete a group (Group Admin can delete their own groups)
+  router.delete('/:id', authorize(['group-admin', 'super-admin', 'user']), async (req, res) => {
+    const groupId = req.params.id;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      const isSuperAdmin = req.user.roles.includes('super-admin');
+      const isOriginalAdmin = group.adminId === req.user.id;
+      const isPromotedAdmin = group.members.some(member => member.userId === req.user.id && member.role === 'group-admin');
+
+      if (isSuperAdmin || isOriginalAdmin || isPromotedAdmin) {
+        await db.collection('groups').deleteOne({ _id: ObjectId(groupId) });
+        res.json({ success: true });
+      } else {
+        res.status(403).send('Not authorized to delete this group');
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error deleting group' });
+    }
+  });
+
+  // Create a channel within a group (Super Admin or Group Admin only)
+  router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { name } = req.body;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
+        const channel = { id: new ObjectId(), name };
+        await db.collection('groups').updateOne(
+          { _id: ObjectId(groupId) },
+          { $push: { channels: channel } }
+        );
+        res.json({ success: true, channel });
+      } else {
+        res.status(403).send('Not authorized to create a channel in this group');
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error creating channel' });
+    }
+  });
+
+  // Delete a channel within a group (Super Admin or Group Admin only)
+  router.delete('/:groupId/channels/:channelId', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { groupId, channelId } = req.params;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
+        await db.collection('groups').updateOne(
+          { _id: ObjectId(groupId) },
+          { $pull: { channels: { id: ObjectId(channelId) } } }
+        );
+        res.json({ success: true });
+      } else {
+        res.status(403).send('Not authorized to delete this channel');
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error deleting channel' });
+    }
+  });
+
+  // Invite a user to a group (Group Admin or Super Admin only)
+  router.post('/:groupId/invite', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { userId } = req.body;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
+        await db.collection('groups').updateOne(
+          { _id: ObjectId(groupId) },
+          { $push: { invitations: { userId: ObjectId(userId) } } }
+        );
+        res.json({ success: true, message: 'User invited successfully' });
+      } else {
+        res.status(403).send('Not authorized to invite users to this group');
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error inviting user' });
+    }
+  });
+
+  // Add a member to a group (when the user accepts the invite)
+  router.post('/:groupId/members', authorize(['user', 'group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { userId } = req.body;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      const inviteIndex = group.invitations.findIndex(invite => invite.userId === ObjectId(userId));
+      if (inviteIndex === -1) {
+        return res.status(403).send('User was not invited to this group');
+      }
+
+      await db.collection('groups').updateOne(
+        { _id: ObjectId(groupId) },
+        {
+          $push: { members: { userId: ObjectId(userId), role: 'user' } },
+          $pull: { invitations: { userId: ObjectId(userId) } }
+        }
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: 'Error adding member to group' });
+    }
+  });
+
+  // Promote a user to group admin (accessible by super-admin or current group admin)
+  router.post('/:groupId/promote', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { userId, role } = req.body;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      const memberIndex = group.members.findIndex(m => m.userId === ObjectId(userId));
+      if (memberIndex !== -1) {
+        await db.collection('groups').updateOne(
+          { _id: ObjectId(groupId), 'members.userId': ObjectId(userId) },
+          { $set: { 'members.$.role': role } }
+        );
+        res.json({ success: true });
+      } else {
+        res.status(404).send('User not found in group');
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error promoting user' });
+    }
+  });
+
+  // Remove a user from a group (Group Admin or Super Admin only)
+  router.delete('/:groupId/users/:userId', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { groupId, userId } = req.params;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+
+      if (!group) {
+        return res.status(404).send('Group not found');
+      }
+
+      const memberIndex = group.members.findIndex(member => member.userId === ObjectId(userId));
+      if (memberIndex !== -1) {
+        await db.collection('groups').updateOne(
+          { _id: ObjectId(groupId) },
+          { $pull: { members: { userId: ObjectId(userId) } } }
+        );
+        res.json({ success: true });
+      } else {
+        res.status(404).json({ success: false, message: 'User not found in group' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error removing user from group' });
+    }
+  });
+
+  // Add join request route
+  router.post('/:groupId/join-request', authorize(['user', 'group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { userId, name } = req.body;
+
+    if (!userId || !name) {
+      return res.status(400).json({ success: false, message: 'Invalid request data' });
+    }
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId.createFromHexString(groupId) });
+
+      if (group) {
+        const alreadyRequested = group.joinRequests?.some(req => req.userId.equals(ObjectId.createFromHexString(userId)));
+
+        if (!alreadyRequested) {
+          await db.collection('groups').updateOne(
+            { _id: ObjectId.createFromHexString(groupId) },
+            { $push: { joinRequests: { userId: ObjectId.createFromHexString(userId), name } } }
+          );
+          res.json({ success: true });
+        } else {
+          res.status(400).json({ success: false, message: 'User has already requested to join' });
+        }
+      } else {
+        res.status(404).send('Group not found');
+      }
+
+    } catch (error) {
+      console.error('Error submitting join request:', error);  // Log detailed error to help debug
+      res.status(500).json({ error: 'Error submitting join request' });
+    }
+  });
+
+
+  // Approve join request
+  router.post('/:groupId/approve-request', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { userId } = req.body;
+
+    try {
+      // Ensure `groupId` and `userId` are correctly converted to ObjectId
+      const group = await db.collection('groups').findOne({ _id: ObjectId.createFromHexString(groupId) });
+
+      if (group) {
+        const requestIndex = group.joinRequests?.findIndex(req => req.userId.equals(ObjectId.createFromHexString(userId)));
+        if (requestIndex !== undefined && requestIndex !== -1) {
+          await db.collection('groups').updateOne(
+            { _id: ObjectId.createFromHexString(groupId) },
+            {
+              $push: { members: { userId: ObjectId.createFromHexString(userId), role: 'user' } },
+              $pull: { joinRequests: { userId: ObjectId.createFromHexString(userId) } }
+            }
+          );
+          res.json({ success: true });
+        } else {
+          res.status(400).json({ success: false, message: 'Join request not found' });
+        }
+      } else {
+        res.status(404).send('Group not found');
+      }
+    } catch (error) {
+      console.error('Error approving join request:', error);
+      res.status(500).json({ error: 'Error approving join request' });
+    }
+  });
+
+
+  // Deny join request
+  router.post('/:groupId/deny-request', authorize(['group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { userId } = req.body;
+
+    try {
+      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+
+      if (group) {
+        await db.collection('groups').updateOne(
+          { _id: ObjectId(groupId) },
+          { $pull: { joinRequests: { userId: ObjectId(userId) } } }
+        );
+        res.json({ success: true });
+      } else {
+        res.status(404).send('Group not found');
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error denying join request' });
+    }
+  });
+
+ // Route for a user to leave a group
+router.post('/:groupId/leave', authorize(['user', 'group-admin', 'super-admin']), async (req, res) => {
   const { groupId } = req.params;
   const { userId } = req.body;
 
-  const group = groups.find(g => g.id === parseInt(groupId));
+  try {
+    const group = await db.collection('groups').findOne({ _id: ObjectId.createFromHexString(groupId) });
 
-  if (!group) {
-    return res.status(404).send('Group not found');
-  }
+    if (group) {
+      // Remove the user from the members list
+      await db.collection('groups').updateOne(
+        { _id: ObjectId.createFromHexString(groupId) },
+        { $pull: { members: { userId: ObjectId.createFromHexString(userId) } } }
+      );
 
-  if (group.adminId === req.user.id || req.user.roles.includes('super-admin')) {
-    if (!group.invitations) {
-      group.invitations = [];
-    }
+      // Check if the user leaving is the group admin and there are still members left
+      if (group.adminId.toString() === userId.toString() && group.members.length > 0) {
+        const newAdmin = group.members[0].userId;
+        await db.collection('groups').updateOne(
+          { _id: ObjectId.createFromHexString(groupId) },
+          { $set: { adminId: ObjectId.createFromHexString(newAdmin), 'members.0.role': 'admin' } }
+        );
+      }      
 
-    const alreadyInvited = group.invitations.some(invite => invite.userId === userId);
-    if (alreadyInvited) {
-      return res.status(400).send('User is already invited');
-    }
-
-    group.invitations.push({ userId });
-    saveGroups(groups);  // Save updated groups to JSON file
-    res.json({ success: true, message: 'User invited successfully' });
-  } else {
-    res.status(403).send('Not authorized to invite users to this group');
-  }
-});
-
-// Add a member to a group (when the user accepts the invite)
-router.post('/:groupId/members', authorize(['user', 'group-admin', 'super-admin']), (req, res) => {
-  const { groupId } = req.params;
-  const { userId } = req.body;
-  const group = groups.find(g => g.id === parseInt(groupId));
-
-  if (!group) {
-    return res.status(404).send('Group not found');
-  }
-
-  const inviteIndex = group.invitations.findIndex(invite => invite.userId === userId);
-
-  if (inviteIndex === -1) {
-    return res.status(403).send('User was not invited to this group');
-  }
-
-  group.members.push({ userId, role: 'user' });
-  group.invitations.splice(inviteIndex, 1); // Remove the invitation after acceptance
-  saveGroups(groups);  // Save updated groups to JSON file
-
-  res.json({ success: true, group });
-});
-
-// Promote a user to group admin (accessible by super-admin or current group admin)
-router.post('/:groupId/promote', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { groupId } = req.params;
-  const { userId, role } = req.body;
-
-  const group = groups.find(g => g.id === parseInt(groupId));
-  if (!group) {
-    return res.status(404).send('Group not found');
-  }
-
-  const member = group.members.find(m => m.userId === parseInt(userId));
-  if (member) {
-    member.role = role;  // Update the role
-    saveGroups(groups);  // Save updated groups to JSON file
-    res.json({ success: true });
-  } else {
-    res.status(404).send('User not found in group');
-  }
-});
-
-// Remove a user from a group (Group Admin or Super Admin only)
-router.delete('/:groupId/users/:userId', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { groupId, userId } = req.params;
-  const group = groups.find(g => g.id === parseInt(groupId));
-
-  if (!group) {
-    return res.status(404).send('Group not found');
-  }
-
-  const userIndex = group.members.findIndex(member => member.userId === parseInt(userId));
-  if (userIndex !== -1) {
-    group.members.splice(userIndex, 1);  // Remove the user from the group members
-    saveGroups(groups);  // Save updated groups to JSON file
-    return res.json({ success: true, message: `User ${userId} removed from group ${groupId}` });
-  } else {
-    return res.status(404).json({ success: false, message: 'User not found in group' });
-  }
-});
-
-// Add join request route
-router.post('/:groupId/join-request', authorize(['user', 'group-admin', 'super-admin']), (req, res) => {
-  const { groupId } = req.params;
-  const { userId, name } = req.body;
-
-  const group = groups.find(g => g.id === parseInt(groupId));
-  
-  if (group) {
-    if (!group.joinRequests) {
-      group.joinRequests = [];
-    }
-
-    const alreadyRequested = group.joinRequests.some(req => req.userId === userId);
-    if (!alreadyRequested) {
-      group.joinRequests.push({ userId, name });
-      saveGroups(groups);  // Save updated groups to JSON file
       res.json({ success: true });
     } else {
-      res.status(400).json({ success: false, message: 'User has already requested to join' });
+      res.status(404).send('Group not found');
     }
-  } else {
-    res.status(404).send('Group not found');
+  } catch (error) {
+    console.error('Error leaving group:', error);
+    res.status(500).json({ error: 'Error leaving group' });
   }
 });
 
-// Approve join request
-router.post('/:groupId/approve-request', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { groupId } = req.params;
-  const { userId } = req.body;
-  const group = groups.find(g => g.id === parseInt(groupId));
 
-  if (group) {
-    const requestIndex = group.joinRequests?.findIndex(req => req.userId === userId);
-    if (requestIndex !== undefined && requestIndex !== -1) {
-      group.joinRequests.splice(requestIndex, 1);
-      group.members.push({ userId, role: 'user' });
-      saveGroups(groups);  // Save updated groups to JSON file
-      res.json({ success: true });
-    } else {
-      res.status(400).json({ success: false, message: 'Join request not found' });
+  router.get('/invitations', async (req, res) => {
+    const userId = req.headers['user-id']; // Get the user ID from the request headers
+
+    try {
+      // Find all groups where the user has been invited
+      const groups = await db.collection('groups').find({
+        invitations: { $elemMatch: { userId: userId } }
+      }).toArray();
+
+      res.json({ success: true, invitations: groups });
+    } catch (error) {
+      console.error('Error fetching invitations:', error);
+      res.status(500).json({ success: false, message: 'Error fetching invitations' });
     }
-  } else {
-    res.status(404).send('Group not found');
-  }
-});
+  });
 
-// Deny join request
-router.post('/:groupId/deny-request', authorize(['group-admin', 'super-admin']), (req, res) => {
-  const { groupId } = req.params;
-  const { userId } = req.body;
-  const group = groups.find(g => g.id === parseInt(groupId));
-
-  if (group) {
-    group.joinRequests = group.joinRequests?.filter(req => req.userId !== userId);
-    saveGroups(groups);  // Save updated groups to JSON file
-    res.json({ success: true });
-  } else {
-    res.status(404).send('Group not found');
-  }
-});
-
-// Route for a user to leave a group
-router.post('/:groupId/leave', authorize(['user', 'group-admin', 'super-admin']), (req, res) => {
-  const { groupId } = req.params;
-  const { userId } = req.body;
-  const group = groups.find(g => g.id === parseInt(groupId));
-
-  if (group) {
-    group.members = group.members.filter(member => member.userId !== userId);
-
-    // Check if the user was the group admin and reassign if necessary
-    if (group.adminId === userId && group.members.length > 0) {
-      group.adminId = group.members[0].userId;
-      group.members[0].role = 'admin';
-    }
-
-    saveGroups(groups);  // Save updated groups to JSON file
-    res.json({ success: true });
-  } else {
-    res.status(404).send('Group not found');
-  }
-});
-
-module.exports = router;
+  return router;
+};

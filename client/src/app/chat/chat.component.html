@@ -1,20 +1,37 @@
 <div class="chat-container">
-  <h3>Select a Channel</h3>
-  <ul class="channel-list">
-    <li *ngFor="let channel of channels" (click)="selectChannel(channel)" [class.selected]="channel.id === selectedChannel?.id">
-      {{ channel.name }}
-    </li>
-  </ul>
+  <div class="channel-list">
+    <h4>Select a Channel</h4>
+    <ul>
+      <li *ngFor="let channel of channels" (click)="selectChannel(channel)">
+        {{ channel.name }}
+      </li>
+    </ul>
+  </div>
 
-  <div *ngIf="selectedChannel" class="chat-section">
-    <h3>Chat in {{ selectedChannel.name }}</h3>
+  <div class="chat-section" *ngIf="selectedChannel">
+    <h4>Chat in {{ selectedChannel.name }}</h4>
+
+    <!-- Message Display -->
     <div class="messages">
-      <div *ngFor="let message of selectedChannel.messages" class="message">
-        <strong>{{ message.sender }}:</strong> {{ message.content }}
-      </div>
+      <ul>
+        <li *ngFor="let message of messages" class="message-item">
+          <div class="message-header">
+            <img *ngIf="message.avatar" [src]="message.avatar" alt="{{ message.sender }}'s avatar" width="40" height="40" class="avatar"/>
+            <strong class="message-sender">{{ message.sender }}</strong>
+            <em class="message-timestamp">{{ message.timestamp | date:'shortTime' }}</em>
+          </div>
+          <div class="message-body">
+            <span *ngIf="message.content" class="message-text">{{ message.content }}</span>
+            <img *ngIf="message.image" [src]="'http://localhost:3000/' + message.image" alt="Chat image" class="message-image" />
+          </div>
+        </li>
+      </ul>
     </div>
-    <div class="chat-input">
+
+    <!-- Send Message Input -->
+    <div class="message-input">
       <input [(ngModel)]="newMessageContent" placeholder="Type your message..." />
+      <input type="file" (change)="onFileSelected($event)" accept="image/*" />
       <button (click)="sendMessage()">Send</button>
     </div>
   </div>

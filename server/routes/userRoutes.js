@@ -1,35 +1,6 @@
 const express = require('express');
-const fs = require('fs');
+const { ObjectId } = require('mongodb');
 const router = express.Router();
-
-const path = './data/users.json'; // Path to the JSON file
-
-// Helper function to load users from JSON file
-const loadUsers = () => {
-  try {
-    const dataBuffer = fs.readFileSync(path);
-    const dataJSON = dataBuffer.toString();
-    return JSON.parse(dataJSON);
-  } catch (error) {
-    console.log("File not found or invalid JSON, initializing with empty users array.");
-    return [];
-  }
-};
-
-// Helper function to save users to JSON file
-const saveUsers = (users) => {
-  const dataJSON = JSON.stringify(users, null, 2);
-  fs.writeFileSync(path, dataJSON, (err) => {
-    if (err) {
-      console.error('Error saving users:', err);
-    } else {
-      console.log('Users saved successfully.');
-    }
-  });
-};
-
-// Load users from JSON file at the start
-let users = loadUsers();
 
 // Middleware to check roles using headers
 const authorize = (requiredRoles) => {
@@ -43,97 +14,139 @@ const authorize = (requiredRoles) => {
   };
 };
 
-// Login route
-router.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  const user = users.find(u => u.username === username && u.password === password);
-  if (user) {
-    res.json({ success: true, user });
-  } else {
-    res.status(401).json({ success: false, message: 'Invalid credentials' });
-  }
-});
+// Passing `db` as a parameter to the module
+module.exports = (db) => {
 
-// Register route
-router.post('/register', (req, res) => {
-  const { username, password } = req.body;
-
-  // Check if the username already exists
-  if (users.find(u => u.username === username)) {
-    return res.status(400).json({ success: false, message: 'Username already exists' });
-  }
-
-  // If the username is unique, create the new user
-  const newUser = { id: users.length + 1, username, password, roles: ['user'] };
-  users.push(newUser);
-  saveUsers(users); // Save updated users to JSON file
-  res.json({ success: true, user: newUser });
-});
-
-// Route for promoting a user to Group Admin or Super Admin (Super Admin only)
-router.post('/promote', authorize(['super-admin']), (req, res) => {
-  const { userId, newRole } = req.body;
-  const user = users.find(u => u.id === userId);
-  if (user) {
-    if (!user.roles.includes(newRole)) {
-      user.roles.push(newRole);
-      saveUsers(users); // Save updated users to JSON file
-      res.json({ success: true, user });
-    } else {
-      res.status(400).json({ success: false, message: 'User already has this role' });
+  // Login route
+  router.post('/login', async (req, res) => {
+    const { username, password } = req.body;
+    try {
+      const user = await db.collection('users').findOne({ username, password });
+      if (user) {
+        res.json({ success: true, user });
+      } else {
+        res.status(401).json({ success: false, message: 'Invalid credentials' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error logging in' });
     }
-  } else {
-    res.status(404).json({ success: false, message: 'User not found' });
-  }
-});
+  });
 
-// Route for a user to delete themselves (any role)
-router.delete('/delete/:userId', (req, res) => {
-  const { userId } = req.params;
-  const userIndex = users.findIndex(u => u.id === parseInt(userId));
+  // Register route
+  router.post('/register', async (req, res) => {
+    const { username, password } = req.body;
 
-  if (userIndex !== -1) {
-    // If deleting self, just proceed
-    if (req.headers['user-id'] === String(userId)) {
-      users.splice(userIndex, 1);
-      saveUsers(users); // Save updated users to JSON file
-      return res.json({ success: true });
+    try {
+      // Check if the username already exists
+      const existingUser = await db.collection('users').findOne({ username });
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'Username already exists' });
+      }
+
+      // Insert new user into the collection
+      const newUser = {
+        username,
+        password, // Store securely (e.g., hashed)
+        roles: ['user'],
+        avatar: '', // Add avatar field (initially empty)
+        createdAt: new Date(),
+      };
+      const result = await db.collection('users').insertOne(newUser);
+
+      // Send back the result properly
+      res.json({ success: true, user: { _id: result.insertedId, ...newUser } });
+    } catch (error) {
+      console.error('Error registering user:', error.message || error);
+      res.status(500).json({ error: 'Error registering user' });
     }
+  });
 
-    // If deleting another user, check if the requestor is a Super Admin
-    const userRoles = req.headers['user-roles'] ? JSON.parse(req.headers['user-roles']) : [];
-    if (userRoles.includes('super-admin')) {
-      users.splice(userIndex, 1);
-      saveUsers(users); // Save updated users to JSON file
-      return res.json({ success: true });
-    } else {
-      return res.status(403).json({ success: false, message: 'Not authorized to delete this user' });
+  // Route for promoting a user to Group Admin or Super Admin (Super Admin only)
+  router.post('/promote', authorize(['super-admin']), async (req, res) => {
+    const { userId, newRole } = req.body;
+    try {
+      const user = await db.collection('users').findOne({ _id: ObjectId(userId) });
+      if (user) {
+        if (!user.roles.includes(newRole)) {
+          await db.collection('users').updateOne(
+            { _id: ObjectId(userId) },
+            { $addToSet: { roles: newRole } }
+          );
+          res.json({ success: true, message: 'User promoted' });
+        } else {
+          res.status(400).json({ success: false, message: 'User already has this role' });
+        }
+      } else {
+        res.status(404).json({ success: false, message: 'User not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error promoting user' });
     }
-  } else {
-    res.status(404).json({ success: false, message: 'User not found' });
-  }
-});
+  });
 
-router.get('/all', authorize(['super-admin']), (req, res) => {
-  res.json(users);
-});
+  // Route for a user to delete themselves (any role)
+  router.delete('/delete/:userId', async (req, res) => {
+    const { userId } = req.params;
+    try {
+      // Check if the user exists
+      const user = await db.collection('users').findOne({ _id: ObjectId(userId) });
 
-// Route for promoting a user to Super Admin (Super Admin only)
-router.post('/promote-to-superadmin', authorize(['super-admin']), (req, res) => {
-  const { userId } = req.body;
-  const user = users.find(u => u.id === userId);
+      if (user) {
+        // If deleting self, proceed
+        if (req.headers['user-id'] === String(userId)) {
+          await db.collection('users').deleteOne({ _id: ObjectId(userId) });
+          return res.json({ success: true, message: 'User deleted' });
+        }
 
-  if (user) {
-    if (!user.roles.includes('super-admin')) {
-      user.roles.push('super-admin');
-      saveUsers(users); // Save updated users to JSON file
-      res.json({ success: true, user });
-    } else {
-      res.status(400).json({ success: false, message: 'User is already a super admin' });
+        // If deleting another user, check if the requestor is a Super Admin
+        const userRoles = req.headers['user-roles'] ? JSON.parse(req.headers['user-roles']) : [];
+        if (userRoles.includes('super-admin')) {
+          await db.collection('users').deleteOne({ _id: ObjectId(userId) });
+          return res.json({ success: true, message: 'User deleted' });
+        } else {
+          return res.status(403).json({ success: false, message: 'Not authorized to delete this user' });
+        }
+      } else {
+        res.status(404).json({ success: false, message: 'User not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error deleting user' });
     }
-  } else {
-    res.status(404).json({ success: false, message: 'User not found' });
-  }
-});
+  });
 
-module.exports = router;
+  // Route to get all users (Super Admin only)
+  router.get('/all', authorize(['super-admin']), async (req, res) => {
+    try {
+      const users = await db.collection('users').find().toArray();
+      res.json(users);
+    } catch (error) {
+      res.status(500).json({ error: 'Error fetching users' });
+    }
+  });
+
+  // Route for promoting a user to Super Admin (Super Admin only)
+  router.post('/promote-to-superadmin', authorize(['super-admin']), async (req, res) => {
+    const { userId } = req.body;
+    try {
+      const user = await db.collection('users').findOne({ _id: ObjectId(userId) });
+
+      if (user) {
+        if (!user.roles.includes('super-admin')) {
+          await db.collection('users').updateOne(
+            { _id: ObjectId(userId) },
+            { $addToSet: { roles: 'super-admin' } }
+          );
+          res.json({ success: true, message: 'User promoted to Super Admin' });
+        } else {
+          res.status(400).json({ success: false, message: 'User is already a Super Admin' });
+        }
+      } else {
+        res.status(404).json({ success: false, message: 'User not found' });
+      }
+    } catch (error) {
+      res.status(500).json({ error: 'Error promoting user' });
+    }
+  });
+
+  return router;
+};

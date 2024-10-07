@@ -7,33 +7,33 @@
           <h3>{{ group.name }}</h3>
         </a>
         <button *ngIf="canDeleteGroup(group)" class="delete-group-btn"
-          (click)="deleteGroup(group.id); $event.stopPropagation()">Delete Group</button>
+                (click)="deleteGroup(group._id); $event.stopPropagation()">Delete Group</button>
       </div>
       <div *ngIf="!userHasAccess(group)" class="group-item">
         <h3>{{ group.name }}</h3>
-        <button class="request-join-btn" (click)="requestToJoin(group.id)">Request to Join</button>
+        <button class="request-join-btn" (click)="requestToJoin(group._id)">Request to Join</button>
       </div>
     </li>
-  </ul>
+  </ul>  
 
   <div *ngIf="selectedGroup" class="selected-group-details">
     <h4>Selected: {{ selectedGroup.name }}</h4>
-    <button class="leave-group-btn" (click)="leaveGroup(selectedGroup.id)">Leave Group</button>
+    <button class="leave-group-btn" (click)="leaveGroup(selectedGroup._id)">Leave Group</button>
     
     <div class="members-section">
       <p>Users:</p>
       <ul class="members-list">
         <li *ngFor="let member of selectedGroup.members">
           {{ member.userId }} - {{ member.role }}
-          <button *ngIf="canPromoteToAdmin(member)" (click)="promoteUser(selectedGroup.id, member.userId)">Promote to Admin</button>
-          <button *ngIf="canDeleteUser(member)" (click)="deleteUserFromGroup(selectedGroup.id, member.userId)">Remove User</button>
+          <button *ngIf="canPromoteToAdmin(member)" (click)="promoteUser(selectedGroup._id, member.userId)">Promote to Admin</button>
+          <button *ngIf="canDeleteUser(member)" (click)="deleteUserFromGroup(selectedGroup._id, member.userId)">Remove User</button>
         </li>
       </ul>
     </div>
 
     <div class="invite-section">
       <input #inviteUserIdInput type="text" placeholder="Enter User ID to invite" class="invite-input"/>
-      <button class="invite-btn" (click)="inviteUserToGroup(selectedGroup.id, inviteUserIdInput.value)">Invite User</button>
+      <button class="invite-btn" (click)="inviteUserToGroup(selectedGroup._id, inviteUserIdInput.value)">Invite User</button>
     </div>
 
     <div class="join-requests-section">
@@ -41,8 +41,8 @@
       <ul class="join-requests-list">
         <li *ngFor="let request of selectedGroup.joinRequests">
           {{ request.userId }} - {{ request.name }}
-          <button class="approve-btn" (click)="approveRequest(selectedGroup.id, request.userId)">Approve</button>
-          <button class="deny-btn" (click)="denyRequest(selectedGroup.id, request.userId)">Deny</button>
+          <button class="approve-btn" (click)="approveRequest(selectedGroup._id, request.userId)">Approve</button>
+          <button class="deny-btn" (click)="denyRequest(selectedGroup._id, request.userId)">Deny</button>
         </li>
       </ul>
     </div>
