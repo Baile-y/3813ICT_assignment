@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
 import { VideoChatComponent } from './video-chat.component';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
 
 describe('VideoChatComponent', () => {
   let component: VideoChatComponent;
@@ -8,7 +8,8 @@ describe('VideoChatComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [VideoChatComponent]
+      declarations: [VideoChatComponent],
+      imports: [HttpClientTestingModule]
     })
     .compileComponents();
 

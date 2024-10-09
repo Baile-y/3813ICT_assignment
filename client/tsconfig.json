@@ -15,6 +15,7 @@
     "sourceMap": true,
     "declaration": false,
     "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
     "moduleResolution": "bundler",
     "importHelpers": true,
     "target": "ES2022",
@@ -24,6 +25,10 @@
       "dom"
     ]
   },
+  "include": [
+    "src/**/*.ts",
+    "e2e/**/*.ts" // Include the e2e tests
+  ],
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,

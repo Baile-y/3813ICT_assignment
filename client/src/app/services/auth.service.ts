@@ -17,7 +17,7 @@ export class AuthService {
   private baseUrl = 'http://localhost:3000/api/users';
   private currentUser: User | null = null;  // In-memory storage for current user
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   // Method to check if user is authenticated
   isAuthenticated(): boolean {
@@ -36,10 +36,10 @@ export class AuthService {
       }),
       catchError((err) => {
         console.error('Login failed', err);
-        return of(null);
+        return of(null);  // Return null in case of failure
       })
     );
-  }
+  }  
 
   // Clears the user data from memory and local storage
   clearUserData(): void {
@@ -133,36 +133,36 @@ export class AuthService {
       }),
       catchError(error => {
         console.error('Registration failed:', error);
-        const errorMessage = error.error?.message || 'Registration error';
+        const errorMessage = error?.error?.message || 'Username already exists'; // Update default error message
         return of({ success: false, message: errorMessage });
       })
     );
   }
 
+
   // Helper method to build HTTP headers
   private buildHeaders(): HttpHeaders {
     const user = this.getCurrentUser();
     if (!user) {
-      throw new Error('No user is logged in');
+      throw new Error('No user is logged in');  // Ensure this error is thrown
     }
-
+  
     return new HttpHeaders({
       'Content-Type': 'application/json',
       'user-id': user._id,  // Use in-memory or local storage user
       'user-roles': JSON.stringify(user.roles)
     });
-  }
+  }  
 
   // Fetch all users
-  // auth.service.ts
-getAllUsers(): Observable<User[]> {
-  const headers = this.buildHeaders();  // Ensure authentication headers are included
-  return this.http.get<User[]>(`${this.baseUrl}/all`, { headers }).pipe(
-    catchError(err => {
-      console.error('Failed to fetch users', err);
-      return of([]); // Return an empty array on failure
-    })
-  );
-}
+  getAllUsers(): Observable<User[]> {
+    const headers = this.buildHeaders();  // Ensure authentication headers are included
+    return this.http.get<User[]>(`${this.baseUrl}/all`, { headers }).pipe(
+      catchError(err => {
+        console.error('Failed to fetch users', err);
+        return of([]); // Return an empty array on failure
+      })
+    );
+  }
 
 }

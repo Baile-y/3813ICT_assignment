@@ -24,8 +24,8 @@ export class ChatComponent implements OnInit, OnDestroy {
   newMessageContent: string = '';
   messages: Message[] = [];
   selectedImage: File | null = null; // Store the selected image
-  private socket: Socket | undefined; // Declare a socket instance
-  private currentUser: any; // Store current user details
+  public currentUser: any;  // Store current user details
+  public socket: Socket | undefined;  // Declare a socket instance  
 
   // Map to store user details
   users: { [key: string]: User } = {}; // Map userId to User object
@@ -39,7 +39,7 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
-    console.log('User:', this.currentUser); // Log the full user object
+    console.log('User:', this.currentUser); //Log the full user object
 
     if (this.currentUser) {
       // Initialize Socket.IO connection
@@ -85,7 +85,7 @@ export class ChatComponent implements OnInit, OnDestroy {
           timestamp: new Date(),
         });
       });
-      
+
       // Fetch all groups the user belongs to
       this.groupService.getGroups().subscribe({
         next: (groups) => {
@@ -171,14 +171,10 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   // Handle disconnect when leaving the component or switching channels
   ngOnDestroy(): void {
-    // If there's a selected channel when leaving, send a disconnect message
     if (this.selectedChannel) {
-      this.socket?.emit('leaveChannel', {
-        userId: this.currentUser?._id,
-        channelId: this.selectedChannel._id,
-        username: this.currentUser?.username,
-      });
+      this.socket?.emit('leaveChannel', this.selectedChannel._id);
     }
     this.socket?.disconnect();
   }
+  
 }
