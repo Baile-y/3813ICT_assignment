@@ -15,16 +15,30 @@
     <div class="messages">
       <ul>
         <li *ngFor="let message of messages" class="message-item">
-          <div class="message-header">
-            <img *ngIf="message.avatar" [src]="message.avatar" alt="{{ message.sender }}'s avatar" width="40" height="40" class="avatar"/>
-            <strong class="message-sender">{{ message.sender }}</strong>
+          <!-- If message has userId (regular message) -->
+          <div *ngIf="message.userId; else systemMessage" class="message-header">
+            <!-- Fetch avatar from the users map -->
+            <img [src]="users[message.userId].avatar ? 'http://localhost:3000/' + users[message.userId].avatar : 'http://localhost:3000/uploads/profile-images/default_profile.jpg'" 
+              alt="{{ users[message.userId].username }}'s avatar"
+              width="40" height="40" class="avatar" />
+            <strong class="message-sender">{{ users[message.userId].username || 'Unknown User' }}</strong>
             <em class="message-timestamp">{{ message.timestamp | date:'shortTime' }}</em>
           </div>
+
+          <!-- System message block (for join/leave messages) -->
+          <ng-template #systemMessage>
+            <div class="system-message">
+              <strong class="message-sender">System:</strong>
+              <em class="message-timestamp">{{ message.timestamp | date:'shortTime' }}</em>
+              <span class="message-text">{{ message.content }}</span>
+            </div>
+          </ng-template>
+
           <div class="message-body">
             <span *ngIf="message.content" class="message-text">{{ message.content }}</span>
             <img *ngIf="message.image" [src]="'http://localhost:3000/' + message.image" alt="Chat image" class="message-image" />
           </div>
-        </li>
+        </li>        
       </ul>
     </div>
 

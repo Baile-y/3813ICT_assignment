@@ -65,11 +65,11 @@ module.exports = (db) => {
   router.post('/promote', authorize(['super-admin']), async (req, res) => {
     const { userId, newRole } = req.body;
     try {
-      const user = await db.collection('users').findOne({ _id: ObjectId(userId) });
+      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) }); // Ensure `new` is used here
       if (user) {
         if (!user.roles.includes(newRole)) {
           await db.collection('users').updateOne(
-            { _id: ObjectId(userId) },
+            { _id: new ObjectId(userId) }, // Ensure `new` is used here as well
             { $addToSet: { roles: newRole } }
           );
           res.json({ success: true, message: 'User promoted' });
@@ -80,28 +80,31 @@ module.exports = (db) => {
         res.status(404).json({ success: false, message: 'User not found' });
       }
     } catch (error) {
+      console.error('Error promoting user to Group Admin:', error);
       res.status(500).json({ error: 'Error promoting user' });
     }
   });
 
+
+  // Route for a user to delete themselves (any role)
   // Route for a user to delete themselves (any role)
   router.delete('/delete/:userId', async (req, res) => {
     const { userId } = req.params;
     try {
       // Check if the user exists
-      const user = await db.collection('users').findOne({ _id: ObjectId(userId) });
+      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) }); // Add "new"
 
       if (user) {
         // If deleting self, proceed
         if (req.headers['user-id'] === String(userId)) {
-          await db.collection('users').deleteOne({ _id: ObjectId(userId) });
+          await db.collection('users').deleteOne({ _id: new ObjectId(userId) }); // Add "new"
           return res.json({ success: true, message: 'User deleted' });
         }
 
         // If deleting another user, check if the requestor is a Super Admin
         const userRoles = req.headers['user-roles'] ? JSON.parse(req.headers['user-roles']) : [];
         if (userRoles.includes('super-admin')) {
-          await db.collection('users').deleteOne({ _id: ObjectId(userId) });
+          await db.collection('users').deleteOne({ _id: new ObjectId(userId) }); // Add "new"
           return res.json({ success: true, message: 'User deleted' });
         } else {
           return res.status(403).json({ success: false, message: 'Not authorized to delete this user' });
@@ -110,12 +113,13 @@ module.exports = (db) => {
         res.status(404).json({ success: false, message: 'User not found' });
       }
     } catch (error) {
+      console.error('Error deleting user:', error);
       res.status(500).json({ error: 'Error deleting user' });
     }
   });
 
   // Route to get all users (Super Admin only)
-  router.get('/all', authorize(['super-admin']), async (req, res) => {
+  router.get('/all', authorize(['group-admin', 'user', 'super-admin']), async (req, res) => {
     try {
       const users = await db.collection('users').find().toArray();
       res.json(users);
@@ -125,15 +129,16 @@ module.exports = (db) => {
   });
 
   // Route for promoting a user to Super Admin (Super Admin only)
+  // Route for promoting a user to Super Admin (Super Admin only)
   router.post('/promote-to-superadmin', authorize(['super-admin']), async (req, res) => {
     const { userId } = req.body;
     try {
-      const user = await db.collection('users').findOne({ _id: ObjectId(userId) });
+      const user = await db.collection('users').findOne({ _id: new ObjectId(userId) });
 
       if (user) {
         if (!user.roles.includes('super-admin')) {
           await db.collection('users').updateOne(
-            { _id: ObjectId(userId) },
+            { _id: new ObjectId(userId) },
             { $addToSet: { roles: 'super-admin' } }
           );
           res.json({ success: true, message: 'User promoted to Super Admin' });
@@ -144,6 +149,7 @@ module.exports = (db) => {
         res.status(404).json({ success: false, message: 'User not found' });
       }
     } catch (error) {
+      console.error('Error promoting user to Super Admin:', error); // Add logging
       res.status(500).json({ error: 'Error promoting user' });
     }
   });

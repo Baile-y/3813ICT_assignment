@@ -9,6 +9,7 @@
     <a *ngIf="!isLoggedIn()" routerLink="/login" routerLinkActive="active">Login</a>
     <a *ngIf="!isLoggedIn()" routerLink="/register" routerLinkActive="active">Register</a>
     <a *ngIf="isLoggedIn()" (click)="deleteAccount()">Delete Account</a>
+    <a routerLink="/video-chat" class="btn btn-primary">Start Video Chat</a>
 
     <a href="#" *ngIf="isLoggedIn()" (click)="logout()" routerLinkActive="active">Logout</a>
 

@@ -1,0 +1,14 @@
+<div class="video-chat-container">
+    <!-- Local User Video -->
+    <div class="video-container">
+      <h3>{{ currentUser?.username || 'You' }}</h3>  <!-- Local user's name -->
+      <video id="localVideo" autoplay muted playsinline></video>  <!-- Local video stream -->
+    </div>
+  
+    <!-- Remote User Video -->
+    <div class="video-container" >
+      <h3>{{ remoteUsername || 'Remote User' }}</h3>  <!-- Remote user's name -->
+      <video id="remoteVideo" autoplay playsinline></video>  <!-- Remote video stream -->
+    </div>
+  </div>
+  

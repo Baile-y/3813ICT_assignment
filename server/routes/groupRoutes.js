@@ -84,29 +84,35 @@ module.exports = (db) => {
 
 
   // Delete a group (Group Admin can delete their own groups)
-  router.delete('/:id', authorize(['group-admin', 'super-admin', 'user']), async (req, res) => {
+  router.delete('/:id', authorize(['group-admin', 'super-admin']), async (req, res) => {
     const groupId = req.params.id;
-
+  
     try {
-      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
+      if (!ObjectId.isValid(groupId)) {
+        return res.status(400).send('Invalid groupId');
+      }
+  
+      const group = await db.collection('groups').findOne({ _id: new ObjectId(groupId) });
       if (!group) {
         return res.status(404).send('Group not found');
       }
-
+  
       const isSuperAdmin = req.user.roles.includes('super-admin');
-      const isOriginalAdmin = group.adminId === req.user.id;
-      const isPromotedAdmin = group.members.some(member => member.userId === req.user.id && member.role === 'group-admin');
-
+      const isOriginalAdmin = group.adminId.toString() === req.user.id;
+      const isPromotedAdmin = group.members.some(member => member.userId.toString() === req.user.id && member.role === 'group-admin');
+  
       if (isSuperAdmin || isOriginalAdmin || isPromotedAdmin) {
-        await db.collection('groups').deleteOne({ _id: ObjectId(groupId) });
-        res.json({ success: true });
+        await db.collection('groups').deleteOne({ _id: new ObjectId(groupId) });
+        return res.status(200).json({ success: true });
       } else {
-        res.status(403).send('Not authorized to delete this group');
+        return res.status(403).send('Not authorized to delete this group');
       }
     } catch (error) {
-      res.status(500).json({ error: 'Error deleting group' });
+      console.error('Error deleting group:', error);
+      return res.status(500).json({ error: 'Error deleting group' });
     }
   });
+  
 
   // Create a channel within a group (Super Admin or Group Admin only)
   router.post('/:groupId/channels', authorize(['group-admin', 'super-admin']), async (req, res) => {
@@ -274,54 +280,64 @@ module.exports = (db) => {
   router.post('/:groupId/join-request', authorize(['user', 'group-admin', 'super-admin']), async (req, res) => {
     const { groupId } = req.params;
     const { userId, name } = req.body;
-
+  
+    // Ensure userId and name are present
     if (!userId || !name) {
-      return res.status(400).json({ success: false, message: 'Invalid request data' });
+      return res.status(400).json({ success: false, message: 'Invalid request data: userId and name are required.' });
     }
-
+  
     try {
-      const group = await db.collection('groups').findOne({ _id: ObjectId.createFromHexString(groupId) });
-
-      if (group) {
-        const alreadyRequested = group.joinRequests?.some(req => req.userId.equals(ObjectId.createFromHexString(userId)));
-
-        if (!alreadyRequested) {
-          await db.collection('groups').updateOne(
-            { _id: ObjectId.createFromHexString(groupId) },
-            { $push: { joinRequests: { userId: ObjectId.createFromHexString(userId), name } } }
-          );
-          res.json({ success: true });
-        } else {
-          res.status(400).json({ success: false, message: 'User has already requested to join' });
-        }
-      } else {
-        res.status(404).send('Group not found');
+      // Convert groupId and userId to ObjectId
+      const groupObjectId = new ObjectId(groupId);  // Convert groupId to ObjectId
+      const userObjectId = new ObjectId(userId);    // Convert userId to ObjectId
+  
+      const group = await db.collection('groups').findOne({ _id: groupObjectId });
+  
+      if (!group) {
+        return res.status(404).send('Group not found');
       }
-
+  
+      // Check if the user has already requested to join
+      const alreadyRequested = group.joinRequests.some(req => req.userId.equals(userObjectId));
+  
+      if (!alreadyRequested) {
+        // Add the join request
+        await db.collection('groups').updateOne(
+          { _id: groupObjectId },
+          { $push: { joinRequests: { userId: userObjectId, name } } }
+        );
+        res.json({ success: true });
+      } else {
+        res.status(400).json({ success: false, message: 'User has already requested to join' });
+      }
     } catch (error) {
-      console.error('Error submitting join request:', error);  // Log detailed error to help debug
+      console.error('Error submitting join request:', error);
       res.status(500).json({ error: 'Error submitting join request' });
     }
   });
-
+  
 
   // Approve join request
   router.post('/:groupId/approve-request', authorize(['group-admin', 'super-admin']), async (req, res) => {
     const { groupId } = req.params;
     const { userId } = req.body;
+    if (!ObjectId.isValid(groupId) || !ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: 'Invalid ObjectId' });
+    }
 
     try {
-      // Ensure `groupId` and `userId` are correctly converted to ObjectId
-      const group = await db.collection('groups').findOne({ _id: ObjectId.createFromHexString(groupId) });
-
+      // Convert groupId and userId to ObjectId using `new ObjectId()`
+      const group = await db.collection('groups').findOne({ _id: new ObjectId(groupId) });
+  
       if (group) {
-        const requestIndex = group.joinRequests?.findIndex(req => req.userId.equals(ObjectId.createFromHexString(userId)));
-        if (requestIndex !== undefined && requestIndex !== -1) {
+        const requestIndex = group.joinRequests.findIndex(req => req.userId.equals(new ObjectId(userId)));
+        
+        if (requestIndex !== -1) {
           await db.collection('groups').updateOne(
-            { _id: ObjectId.createFromHexString(groupId) },
+            { _id: new ObjectId(groupId) },
             {
-              $push: { members: { userId: ObjectId.createFromHexString(userId), role: 'user' } },
-              $pull: { joinRequests: { userId: ObjectId.createFromHexString(userId) } }
+              $push: { members: { userId: new ObjectId(userId), role: 'user' } },
+              $pull: { joinRequests: { userId: new ObjectId(userId) } }
             }
           );
           res.json({ success: true });
@@ -336,65 +352,78 @@ module.exports = (db) => {
       res.status(500).json({ error: 'Error approving join request' });
     }
   });
-
-
+  
   // Deny join request
   router.post('/:groupId/deny-request', authorize(['group-admin', 'super-admin']), async (req, res) => {
     const { groupId } = req.params;
     const { userId } = req.body;
-
+  
     try {
-      const group = await db.collection('groups').findOne({ _id: ObjectId(groupId) });
-
+      // Validate the groupId and userId
+      if (!ObjectId.isValid(groupId) || !ObjectId.isValid(userId)) {
+        return res.status(400).send('Invalid groupId or userId');
+      }
+  
+      const group = await db.collection('groups').findOne({ _id: new ObjectId(groupId) });
+  
       if (group) {
+        const requestIndex = group.joinRequests.findIndex(req => req.userId.toString() === userId);
+        if (requestIndex !== -1) {
+          await db.collection('groups').updateOne(
+            { _id: new ObjectId(groupId) },
+            { $pull: { joinRequests: { userId: new ObjectId(userId) } } }
+          );
+          return res.status(200).json({ success: true });
+        } else {
+          return res.status(400).json({ success: false, message: 'Join request not found' });
+        }
+      } else {
+        return res.status(404).send('Group not found');
+      }
+    } catch (error) {
+      console.error('Error denying join request:', error);
+      return res.status(500).json({ error: 'Error denying join request' });
+    }
+  });  
+
+  // Route for a user to leave a group
+  router.post('/:groupId/leave', authorize(['user', 'group-admin', 'super-admin']), async (req, res) => {
+    const { groupId } = req.params;
+    const { userId } = req.body;
+  
+    try {
+      if (!ObjectId.isValid(groupId) || !ObjectId.isValid(userId)) {
+        return res.status(400).send('Invalid groupId or userId format');
+      }
+  
+      const group = await db.collection('groups').findOne({ _id: new ObjectId(groupId) });
+  
+      if (group) {
+        // Remove the user from the members list
         await db.collection('groups').updateOne(
-          { _id: ObjectId(groupId) },
-          { $pull: { joinRequests: { userId: ObjectId(userId) } } }
+          { _id: new ObjectId(groupId) },
+          { $pull: { members: { userId: new ObjectId(userId) } } }
         );
+  
+        // Check if the user leaving is the group admin and there are still members left
+        if (group.adminId.toString() === userId && group.members.length > 0) {
+          const newAdmin = group.members[0].userId;
+          await db.collection('groups').updateOne(
+            { _id: new ObjectId(groupId) },
+            { $set: { adminId: new ObjectId(newAdmin), 'members.0.role': 'admin' } }
+          );
+        }
+  
         res.json({ success: true });
       } else {
         res.status(404).send('Group not found');
       }
     } catch (error) {
-      res.status(500).json({ error: 'Error denying join request' });
+      console.error('Error leaving group:', error);
+      res.status(500).json({ error: 'Error leaving group' });
     }
   });
-
- // Route for a user to leave a group
-router.post('/:groupId/leave', authorize(['user', 'group-admin', 'super-admin']), async (req, res) => {
-  const { groupId } = req.params;
-  const { userId } = req.body;
-
-  try {
-    const group = await db.collection('groups').findOne({ _id: ObjectId.createFromHexString(groupId) });
-
-    if (group) {
-      // Remove the user from the members list
-      await db.collection('groups').updateOne(
-        { _id: ObjectId.createFromHexString(groupId) },
-        { $pull: { members: { userId: ObjectId.createFromHexString(userId) } } }
-      );
-
-      // Check if the user leaving is the group admin and there are still members left
-      if (group.adminId.toString() === userId.toString() && group.members.length > 0) {
-        const newAdmin = group.members[0].userId;
-        await db.collection('groups').updateOne(
-          { _id: ObjectId.createFromHexString(groupId) },
-          { $set: { adminId: ObjectId.createFromHexString(newAdmin), 'members.0.role': 'admin' } }
-        );
-      }      
-
-      res.json({ success: true });
-    } else {
-      res.status(404).send('Group not found');
-    }
-  } catch (error) {
-    console.error('Error leaving group:', error);
-    res.status(500).json({ error: 'Error leaving group' });
-  }
-});
-
-
+  
   router.get('/invitations', async (req, res) => {
     const userId = req.headers['user-id']; // Get the user ID from the request headers
 

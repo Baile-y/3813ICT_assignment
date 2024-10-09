@@ -73,31 +73,38 @@ MongoClient.connect(mongoURI)
     // Route to upload profile image
     app.post('/api/users/upload-avatar', upload.single('profileImage'), async (req, res) => {
       const userId = req.headers['user-id'];  // Get user ID from the request headers
-
+    
       if (!userId) {
         return res.status(400).json({ message: 'User ID is required' });
       }
-
+    
       try {
         const avatarPath = req.file.path;  // Path to the uploaded image
-
+    
         // Convert userId to ObjectId
         const objectId = ObjectId.isValid(userId) ? new ObjectId(userId) : null;
-
+    
         if (!objectId) {
           throw new Error('Invalid User ID');
         }
-
+    
+        // Ensure that the database is initialized
+        const db = req.app.locals.db; // Assuming you've saved the MongoDB client in app.locals
+    
+        if (!db) {
+          return res.status(500).json({ message: 'Database connection error' });
+        }
+    
         // Update the user document with the avatar path
         const result = await db.collection('users').updateOne(
           { _id: objectId },
           { $set: { avatar: avatarPath } }
         );
-
+    
         if (result.matchedCount === 0) {
           return res.status(404).json({ message: 'User not found' });
         }
-
+    
         res.json({ message: 'Avatar uploaded successfully', avatarPath });
       } catch (error) {
         console.error('Error uploading avatar:', error);
@@ -105,33 +112,54 @@ MongoClient.connect(mongoURI)
       }
     });
 
-
-    // Socket.io integration
+    // Socket.io integration for chat and video chat signaling
     io.on('connection', (socket) => {
-      console.log('New client connected');
-    
+      // Handle chat messages
       socket.on('sendMessage', (messageData) => {
-        console.log('Message received:', messageData);
-    
-        // Emit the message back to all clients in the specific channel
         io.to(messageData.channelId).emit('messageReceived', messageData);
       });
-    
-      socket.on('joinChannel', (channelId) => {
+
+      // Handle channel join and leave
+      socket.on('joinChannel', (data) => {
+        const { userId, channelId, username } = data;
         socket.join(channelId);
-        console.log(`User joined channel: ${channelId}`);
-      });
     
-      socket.on('leaveChannel', (channelId) => {
-        socket.leave(channelId);
-        console.log(`User left channel: ${channelId}`);
-      });
+        console.log(`${username} joined channel: ${channelId}`);
     
+        // Broadcast to the channel that the user has joined
+        io.to(channelId).emit('userJoined', { username, message: `${username} has joined the channel.` });
+      });
+
       socket.on('disconnect', () => {
-        console.log('Client disconnected');
+        // Notify the other user that the peer has disconnected
+        socket.broadcast.emit('leave');
+      });
+
+      socket.on('leaveChannel', (data) => {
+        const { userId, channelId, username } = data;
+        socket.leave(channelId);
+    
+        console.log(`${username} left channel: ${channelId}`);
+    
+        // Broadcast to the channel that the user has left
+        io.to(channelId).emit('userLeft', { username, message: `${username} has left the channel.` });
+      });
+
+      // WebRTC signaling for video chat
+      socket.on('offer', (data) => {
+        const { description, username } = data;
+        socket.broadcast.emit('offer', { description, username });  // Send the username with the offer
+      });
+
+      socket.on('answer', (answer) => {
+        socket.broadcast.emit('answer', answer); // Broadcast the answer to the peer
+      });
+
+      socket.on('ice-candidate', (candidate) => {
+        socket.broadcast.emit('ice-candidate', candidate); // Broadcast the ICE candidate
       });
     });
-    
+
     // Start the server
     server.listen(3000, () => {
       console.log('Server is running on port 3000');
@@ -141,3 +169,6 @@ MongoClient.connect(mongoURI)
   .catch(err => {
     console.error('Failed to connect to MongoDB', err);
   });
+
+// Export the server for testing
+module.exports = { app, server };  // Export both app and server

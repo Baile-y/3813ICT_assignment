@@ -1,5 +1,13 @@
-<form (submit)="uploadProfileImage($event)">
-    <input type="file" (change)="onFileSelected($event)" accept="image/*" />
-    <button type="submit">Upload Profile Image</button>
-  </form>
-  
+<div class="profile-section">
+    <!-- Display the current profile picture or default image -->
+    <div class="profile-picture">
+        <img [src]="currentUser?.avatar ? 'http://localhost:3000/' + currentUser?.avatar : 'http://localhost:3000/uploads/profile-images/default_profile.jpg'" 
+             alt="User's profile picture" />
+    </div>
+
+    <!-- Upload profile image form -->
+    <form (submit)="uploadProfileImage($event)" class="upload-form">
+        <input type="file" (change)="onFileSelected($event)" accept="image/*" class="file-input" />
+        <button type="submit" class="upload-btn">Upload Profile Image</button>
+    </form>
+</div>

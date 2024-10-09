@@ -11,6 +11,7 @@ import { InvitesComponent } from './invite/invite.component';
 import { AdminComponent } from './admin/admin.component';
 import { RegisterComponent } from './register/register.component';
 import { ProfileComponent } from './profile/profile.component';
+import { VideoChatComponent } from './video-chat/video-chat.component';
 
 export const appRoutes: Routes = [
   { path: 'login', component: LoginComponent },
@@ -20,6 +21,7 @@ export const appRoutes: Routes = [
   { path: 'chat', component: ChatComponent, canActivate: [AuthGuard] },
   { path: 'invites', component: InvitesComponent, canActivate: [AuthGuard]},
   { path: 'admin', component: AdminComponent, canActivate: [SuperAdminGuard]},
+  { path: 'video-chat', component: VideoChatComponent, canActivate: [AuthGuard]},
   { path: 'register', component: RegisterComponent},
   { path: '', redirectTo: '/login', pathMatch: 'full' }
 ];

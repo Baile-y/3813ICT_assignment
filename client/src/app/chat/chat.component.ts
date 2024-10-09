@@ -7,6 +7,7 @@ import { Message } from '../models/chat-message.model';
 import { AuthService } from '../services/auth.service';
 import { ChannelService } from '../services/channel.service';
 import { GroupService } from '../services/group.service';
+import { User } from '../models/user.model';  // Import User model
 import { io, Socket } from 'socket.io-client'; // Import Socket.IO client
 
 @Component({
@@ -26,12 +27,15 @@ export class ChatComponent implements OnInit, OnDestroy {
   private socket: Socket | undefined; // Declare a socket instance
   private currentUser: any; // Store current user details
 
+  // Map to store user details
+  users: { [key: string]: User } = {}; // Map userId to User object
+
   constructor(
     private channelService: ChannelService,
     private messageService: MessageService,
     private groupService: GroupService,
     private authService: AuthService
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.currentUser = this.authService.getCurrentUser();
@@ -43,6 +47,14 @@ export class ChatComponent implements OnInit, OnDestroy {
         query: { userId: this.currentUser._id, username: this.currentUser.username },
       });
 
+      // Fetch users from backend
+      this.authService.getAllUsers().subscribe((users) => {
+        // Populate users map by userId
+        users.forEach(user => {
+          this.users[user._id] = user;
+        });
+      });
+
       // Handle incoming chat messages
       this.socket.on('messageReceived', (message: Message) => {
         if (this.selectedChannel && message.channelId === this.selectedChannel._id) {
@@ -50,6 +62,30 @@ export class ChatComponent implements OnInit, OnDestroy {
         }
       });
 
+      // Handle user join event
+      this.socket.on('userJoined', (data: { username: string, message: string }) => {
+        this.messages.push({
+          _id: '',  // Dummy value for system messages
+          channelId: this.selectedChannel?._id || '',  // Provide the current channel ID
+          userId: '',  // No specific user ID for system messages
+          sender: 'System',
+          content: data.message,
+          timestamp: new Date(),
+        });
+      });
+
+      // Handle user leave event
+      this.socket.on('userLeft', (data: { username: string, message: string }) => {
+        this.messages.push({
+          _id: '',  // Dummy value for system messages
+          channelId: this.selectedChannel?._id || '',  // Provide the current channel ID
+          userId: '',  // No specific user ID for system messages
+          sender: 'System',
+          content: data.message,
+          timestamp: new Date(),
+        });
+      });
+      
       // Fetch all groups the user belongs to
       this.groupService.getGroups().subscribe({
         next: (groups) => {
@@ -68,12 +104,21 @@ export class ChatComponent implements OnInit, OnDestroy {
   selectChannel(channel: Channel): void {
     // If there was a previously selected channel, leave that channel first
     if (this.selectedChannel) {
-      this.socket?.emit('leaveChannel', this.selectedChannel._id);
+      this.socket?.emit('leaveChannel', {
+        userId: this.currentUser?._id,
+        channelId: this.selectedChannel._id,
+        username: this.currentUser?.username,
+      });
     }
 
     // Set the newly selected channel and join it
     this.selectedChannel = channel;
-    this.socket?.emit('joinChannel', channel._id);
+
+    this.socket?.emit('joinChannel', {
+      userId: this.currentUser?._id,
+      channelId: this.selectedChannel._id,
+      username: this.currentUser?.username,
+    });
 
     // Fetch existing messages for the selected channel
     this.messageService.getMessagesForChannel(this.selectedChannel._id).subscribe({
@@ -96,17 +141,17 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   sendMessage(): void {
     if (!this.newMessageContent.trim() && !this.selectedImage) return;
-  
+
     const formData = new FormData();
     formData.append('channelId', this.selectedChannel?._id || '');
     formData.append('userId', this.currentUser?._id || '');
     formData.append('sender', this.currentUser?.username || 'Anonymous');
     formData.append('content', this.newMessageContent || '');
-  
+
     if (this.selectedImage) {
       formData.append('image', this.selectedImage); // Append image if available
     }
-  
+
     // Send the message (with or without an image) via the same route
     this.messageService.uploadImageWithMessage(formData).subscribe({
       next: (response) => {
@@ -118,59 +163,21 @@ export class ChatComponent implements OnInit, OnDestroy {
         console.error('Error uploading image:', err);
       }
     });
-  
+
     // Clear the input fields after sending
     this.newMessageContent = '';
     this.selectedImage = null;
-  }
-  
-  // Helper function to emit the message and store it via the API
-  private sendMessageToServer(messageData: any) {
-    // Emit the message via Socket.IO for real-time communication
-    this.socket?.emit('sendMessage', messageData);
-  
-    // Send the message to the backend via the API for storage
-    this.messageService.sendMessage(messageData).subscribe({
-      next: (response) => {
-        console.log('Message stored successfully', response);
-      },
-      error: (err) => {
-        console.error('Error storing message:', err);
-      }
-    });
-  }
-
-  // Function to send a connect message when user selects a channel
-  private sendConnectMessage(channel: Channel): void {
-    const message: Message = {
-      _id: '',
-      channelId: channel._id,
-      userId: this.currentUser?._id || '',
-      sender: 'System',
-      content: `${this.currentUser.username} has joined the channel.`,
-      timestamp: new Date(),
-    };
-    this.socket?.emit('sendConnectMessage', message);
-  }
-
-  // Function to send a disconnect message when user leaves a channel
-  private sendDisconnectMessage(channel: Channel): void {
-    const message: Message = {
-      _id: '',
-      channelId: channel._id,
-      userId: this.currentUser?._id || '',
-      sender: 'System',
-      content: `${this.currentUser.username} has left the channel.`,
-      timestamp: new Date(),
-    };
-    this.socket?.emit('sendDisconnectMessage', message);
   }
 
   // Handle disconnect when leaving the component or switching channels
   ngOnDestroy(): void {
     // If there's a selected channel when leaving, send a disconnect message
     if (this.selectedChannel) {
-      this.sendDisconnectMessage(this.selectedChannel);
+      this.socket?.emit('leaveChannel', {
+        userId: this.currentUser?._id,
+        channelId: this.selectedChannel._id,
+        username: this.currentUser?.username,
+      });
     }
     this.socket?.disconnect();
   }

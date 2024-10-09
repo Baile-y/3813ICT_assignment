@@ -131,3 +131,10 @@
 .message-input button:hover {
   background-color: #0056b3;
 }
+
+.system-message {
+  text-align: center;
+  color: #888;
+  font-style: italic;
+  margin-bottom: 10px;
+}

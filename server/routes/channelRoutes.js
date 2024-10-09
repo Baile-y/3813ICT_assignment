@@ -33,7 +33,7 @@ const authorize = (requiredRoles) => {
         userRoles = req.body.user.roles;
         userId = req.body.user.id;
       }
-
+      
       if (Array.isArray(userRoles) && requiredRoles.some(role => userRoles.includes(role))) {
         req.user = { id: userId, roles: userRoles };
         next();
@@ -46,11 +46,13 @@ const authorize = (requiredRoles) => {
   };
 };
 
+
 // Passing `db` as a parameter to the module
 module.exports = (db) => {
 
   // Get all channels within a group
   router.get('/:groupId', authorize(['group-admin', 'super-admin', 'user']), async (req, res) => {
+
     const groupId = req.params.groupId;
 
     try {
@@ -90,7 +92,6 @@ module.exports = (db) => {
         res.status(403).send('Not authorized to create channels in this group');
       }
     } catch (error) {
-      console.error('Error creating channel:', error); // Log the error for debugging
       res.status(500).json({ error: 'Error creating channel' });
     }
   });
@@ -123,42 +124,6 @@ module.exports = (db) => {
     }
   });
 
-  // router.post('/message', upload.single('image'), async (req, res) => {
-  //   const { channelId, userId, sender, content } = req.body;
-  
-  //   // Validate channelId and userId
-  //   if (!ObjectId.isValid(channelId) || !ObjectId.isValid(userId)) {
-  //     return res.status(400).json({ error: 'Invalid channelId or userId' });
-  //   }
-  
-  //   try {
-  //     // Prepare the message object
-  //     const message = {
-  //       channelId: new ObjectId(channelId),  // Use 'new' with ObjectId
-  //       userId: new ObjectId(userId),        // Use 'new' with ObjectId
-  //       sender,
-  //       content,
-  //       timestamp: new Date(),
-  //     };
-  
-  //     // If an image is provided, include the image path in the message
-  //     if (req.file) {
-  //       message.image = req.file.path; // Save the image file path
-  //     }
-  
-  //     // Log the message for debugging purposes
-  //     console.log('Message to insert:', message);
-  
-  //     // Store the message in the database
-  //     const db = req.app.locals.db; // Assuming db is passed through middleware or set in app.locals
-  //     await db.collection('messages').insertOne(message);
-  
-  //     res.status(201).json({ success: true, message });
-  //   } catch (error) {
-  //     console.error('Error uploading message:', error);
-  //     res.status(500).json({ error: 'Error uploading message' });
-  //   }
-  // });
   router.post('/message', upload.single('image'), async (req, res) => {
     const { channelId, userId, sender, content } = req.body;
   
@@ -190,9 +155,6 @@ module.exports = (db) => {
       if (req.file) {
         message.image = req.file.path; // Save the image file path
       }
-  
-      // Log the message for debugging purposes
-      console.log('Message to insert:', message);
   
       // Store the message in the database
       await db.collection('messages').insertOne(message);

@@ -56,6 +56,12 @@ export class AuthService {
     return this.currentUser;
   }
 
+  // Update the current user in local storage
+  updateCurrentUser(updatedUser: User): void {
+    localStorage.setItem('user', JSON.stringify(updatedUser));  // Update user in local storage
+    this.currentUser = updatedUser;  // Update the in-memory user
+  }
+
   // Checks if a user is logged in by verifying if user exists in memory or local storage
   isLoggedIn(): boolean {
     return !!this.getCurrentUser();
@@ -148,12 +154,15 @@ export class AuthService {
   }
 
   // Fetch all users
-  getAllUsers(): Observable<User[]> {
-    return this.http.get<User[]>(`${this.baseUrl}/all`).pipe(
-      catchError(err => {
-        console.error('Failed to fetch users', err);
-        return of([]); // Return an empty array on failure
-      })
-    );
-  }
+  // auth.service.ts
+getAllUsers(): Observable<User[]> {
+  const headers = this.buildHeaders();  // Ensure authentication headers are included
+  return this.http.get<User[]>(`${this.baseUrl}/all`, { headers }).pipe(
+    catchError(err => {
+      console.error('Failed to fetch users', err);
+      return of([]); // Return an empty array on failure
+    })
+  );
+}
+
 }
